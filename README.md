@@ -31,6 +31,7 @@
 - [Arquitectura Técnica](#-arquitectura-técnica)
 - [Contribuir](#-contribuir)
 - [Licencia](#-licencia)
+- [Autoría](#-autoría)
 - [Créditos](#-créditos)
 
 ---
@@ -112,8 +113,6 @@ El **Sistema de Monitoreo de Biodiversidad con Cámaras Trampa** es una platafor
 ### Sistema Operativo
 
 - ✅ Windows 10/11
-- ✅ macOS 10.15+
-- ✅ Linux (Ubuntu 20.04+, Debian 11+)
 
 ---
 
@@ -586,6 +585,25 @@ Ver detalles completos en: https://creativecommons.org/publicdomain/zero/1.0/
 
 ---
 
+## 👥 Autoría
+
+**Desarrollo principal:**  
+Cristian C. Acevedo
+
+**Coordinación científica:**  
+Angélica Diaz-Pulido
+
+**Institución:**  
+Instituto de Investigación de Recursos Biológicos Alexander von Humboldt – Red OTUS
+
+**Proyecto:**  
+Contrato 25-064 
+Desarrollo de Software CamTrapFlow (CTF) y Dashboards
+
+**Año:** 2025
+
+---
+
 ## 🏆 Créditos
 
 ### Desarrollo
@@ -622,23 +640,7 @@ Ver detalles completos en: https://creativecommons.org/publicdomain/zero/1.0/
 
 ---
 
-## 📞 Contacto
-
-**Proyecto Red OTUS Colombia**  
-Instituto de Investigación de Recursos Biológicos Alexander von Humboldt
-
-- **Email:** [Pendiente de actualizar]
-- **Web:** [Pendiente de actualizar]
-- **Issues:** https://github.com/[USUARIO]/Dashboard_Monitoreo_Camaras_Trampa_Red_OTUS_Colombia/issues
-
----
-
 <div align="center">
-
-**Desarrollado con** ❤️ **para la conservación de la biodiversidad colombiana**
-
-![Instituto Humboldt](https://via.placeholder.com/150x50?text=IAvH)
-
-*Última actualización: Diciembre 2025*
-
+  <em>Instituto de Investigación de Recursos Biológicos Alexander von Humboldt</em><br>
+  <strong>Comprometidos con la conservación y el conocimiento de la biodiversidad colombiana</strong>
 </div>
