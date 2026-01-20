@@ -1,0 +1,395 @@
+# ============================================================================
+# .gitignore - Dashboard Monitoreo Cámaras Trampa Red OTUS Colombia
+# ============================================================================
+# Última actualización: 2025-12-09
+# Descripción: Archivos y carpetas excluidos del control de versiones Git
+# ============================================================================
+
+# ============================================================================
+# DATOS SENSIBLES Y ARCHIVOS GRANDES
+# ============================================================================
+
+# Datos crudos de Wildlife Insights (archivos CSV grandes)
+1_Data_RAW_WI/*.csv
+1_Data_RAW_WI/**/*.csv
+
+# Datos procesados (archivos Parquet)
+4_Dashboard/dashboard_input_data/*.parquet
+4_Dashboard/dashboard_input_data/**/*.parquet
+
+# Shapefiles de CARs (archivos grandes de geometrías)
+2_Data_Shapefiles_CARs/*.shp
+2_Data_Shapefiles_CARs/*.shx
+2_Data_Shapefiles_CARs/*.dbf
+2_Data_Shapefiles_CARs/*.prj
+2_Data_Shapefiles_CARs/*.cpg
+2_Data_Shapefiles_CARs/*.qmd
+
+# Imágenes de fototrampeo (archivos multimedia pesados)
+4_Dashboard/www/images/favorites/**/*.jpg
+4_Dashboard/www/images/favorites/**/*.jpeg
+4_Dashboard/www/images/favorites/**/*.png
+4_Dashboard/www/images/favorites/**/*.JPG
+4_Dashboard/www/images/favorites/**/*.JPEG
+4_Dashboard/www/images/favorites/**/*.PNG
+
+# Reportes exportados del dashboard
+*.png
+*.html
+!4_Dashboard/www/images/Logos/*.png
+!4_Dashboard/www/images/General/*.png
+
+# ============================================================================
+# PYTHON
+# ============================================================================
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Translations
+*.mo
+*.pot
+
+# Django stuff
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# Flask stuff
+instance/
+.webassets-cache
+
+# Scrapy stuff
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+.pybuilder/
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+.python-version
+
+# pipenv
+Pipfile.lock
+
+# poetry
+poetry.lock
+
+# pdm
+.pdm.toml
+
+# PEP 582
+__pypackages__/
+
+# Celery stuff
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# pytype static type analyzer
+.pytype/
+
+# Cython debug symbols
+cython_debug/
+
+# ============================================================================
+# R
+# ============================================================================
+
+# History files
+.Rhistory
+.Rapp.history
+
+# Session Data files
+.RData
+.RDataTmp
+
+# User-specific files
+.Ruserdata
+
+# Example code in package build process
+*-Ex.R
+
+# Output files from R CMD build
+/*.tar.gz
+
+# Output files from R CMD check
+/*.Rcheck/
+
+# RStudio files
+.Rproj.user/
+*.Rproj
+
+# produced vignettes
+vignettes/*.html
+vignettes/*.pdf
+
+# OAuth2 token, see https://github.com/hadley/httr/releases/tag/v0.3
+.httr-oauth
+
+# knitr and R markdown default cache directories
+*_cache/
+/cache/
+
+# Temporary files created by R markdown
+*.utf8.md
+*.knit.md
+
+# R Environment Variables
+.Renviron
+
+# pkgdown site
+docs/
+
+# translation temp files
+po/*~
+
+# RStudio Connect folder
+rsconnect/
+
+# ============================================================================
+# SISTEMA OPERATIVO
+# ============================================================================
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# ============================================================================
+# IDEs Y EDITORES
+# ============================================================================
+
+# Visual Studio Code
+.vscode/
+*.code-workspace
+.history/
+
+# PyCharm
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+[._]*.s[a-v][a-z]
+[._]*.sw[a-p]
+[._]s[a-rt-v][a-z]
+[._]ss[a-gi-z]
+[._]sw[a-p]
+*.un~
+Session.vim
+.netrwhist
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# ============================================================================
+# ARCHIVOS TEMPORALES Y DE RESPALDO
+# ============================================================================
+
+# Archivos temporales generales
+*.tmp
+*.temp
+*.bak
+*.backup
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+logs/
+log/
+
+# Archivos de bloqueo
+*.lock
+
+# ============================================================================
+# CONFIGURACIONES LOCALES Y SECRETOS
+# ============================================================================
+
+# Variables de entorno
+.env
+.env.local
+.env.*.local
+
+# Configuraciones locales
+config.local.yml
+config.local.yaml
+settings.local.json
+
+# Credenciales
+credentials.json
+secrets.json
+*.key
+*.pem
+
+# ============================================================================
+# ARCHIVOS DE CONSTRUCCIÓN Y COMPILACIÓN
+# ============================================================================
+
+# Node.js (si se usa para herramientas de build)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ============================================================================
+# EXCEPCIONES (ARCHIVOS A INCLUIR)
+# ============================================================================
+
+# Mantener archivos README en carpetas de datos
+!1_Data_RAW_WI/README.md
+!2_Data_Shapefiles_CARs/README.md
+!4_Dashboard/dashboard_input_data/README.md
+
+# Mantener estructura de carpetas vacías
+!**/.gitkeep
+
+# Mantener archivos de ejemplo pequeños (si existen)
+!**/example_*.csv
+!**/sample_*.csv
+
+# Mantener logos e imágenes del dashboard
+!4_Dashboard/www/images/Logos/*
+!4_Dashboard/www/images/General/*
+
+# ============================================================================
+# FIN DEL ARCHIVO .gitignore
+# ============================================================================

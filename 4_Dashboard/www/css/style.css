@@ -1,0 +1,1973 @@
+/*
+Theme Name: Dashboard Fototrampeo Wildlife Insights V2
+Description: Custom theme for Wildlife Camera Trap Dashboard
+Version: 2.2
+Author: Conservation International / Instituto Humboldt
+License: Creative Commons License CC0
+Last Update: 2025-12-09 - Fixed carousel container overflow for arrow visibility
+*/
+
+/* ============================================================================
+   VARIABLES CSS (DESIGN TOKENS)
+   ============================================================================ */
+:root {
+  /* Colores principales */
+  --color-primary: #0397d6;
+  --color-primary-dark: #026a9e;
+  --color-primary-light: rgba(3, 151, 214, 0.1);
+  --color-secondary: #1a5490;
+  --color-accent: #34495e;
+  
+  /* Colores de texto */
+  --color-text-primary: #2c3e50;
+  --color-text-secondary: #7f8c8d;
+  --color-text-heading: #1a5490;
+  
+  /* Colores de fondo */
+  --color-bg-main: #ecf0f5;
+  --color-bg-white: #ffffff;
+  --color-bg-subtle: #f8f9fa;
+  
+  /* Colores de borde */
+  --color-border-light: #e1e8ed;
+  --color-border-primary: #0397d6;
+  
+  /* Tipografía */
+  --font-family-base: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  --font-size-base: 16px;
+  --font-size-small: 0.875em;
+  --font-size-xsmall: 0.8125em;
+  --font-size-large: 1.125em;
+  --font-size-xlarge: 1.25em;
+  --font-size-title: 2rem;
+  
+  /* Espaciado */
+  --spacing-xs: 5px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 15px;
+  --spacing-xl: 20px;
+  
+  /* Bordes y sombras */
+  --border-radius-sm: 6px;
+  --border-radius-md: 8px;
+  --border-radius-lg: 12px;
+  --border-width: 1px;
+  --border-width-thick: 2px;
+  
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.15);
+  --shadow-hover: 0 4px 16px rgba(0, 0, 0, 0.25);
+  
+  /* Z-index (sistema de capas) */
+  --z-dropdown: 100;
+  --z-dropdown-primary: 200;
+  --z-dropdown-menu: 9999;
+  --z-dropdown-menu-primary: 10000;
+  
+  /* Transiciones */
+  --transition-fast: 0.2s ease;
+  --transition-base: 0.3s ease;
+  --transition-slow: 0.5s ease;
+  
+  /* Alturas de cajas */
+  --box-height-sm: 220px;
+  --box-height-md: 300px;
+  --box-height-lg: 420px;
+  --box-height-xl: 460px;
+}
+
+/* ============================================================================
+   RESET Y CONFIGURACIÓN BASE
+   ============================================================================ */
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0 10px;
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-base);
+  line-height: 1.6;
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-main);
+  overflow-x: hidden;
+}
+
+.content-wrapper {
+  background-color: var(--color-bg-main);
+}
+
+/* ============================================================================
+   TIPOGRAFÍA
+   ============================================================================ */
+
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 600;
+  line-height: 1.3;
+  margin: 0 0 0.75em 0;
+  color: var(--color-text-heading);
+}
+
+h1 { font-size: 2.25em; }
+h2 { font-size: 1.875em; color: var(--color-text-primary); }
+h3 { font-size: 1.5em; color: var(--color-accent); }
+h4 { font-size: var(--font-size-xlarge); color: var(--color-accent); }
+h5 { font-size: var(--font-size-large); }
+h6 { font-size: 1em; }
+
+p {
+  margin: 0 0 1em 0;
+}
+
+a {
+  color: var(--color-primary);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+a:hover {
+  color: var(--color-primary-dark);
+  text-decoration: underline;
+}
+
+a:focus {
+  outline: var(--border-width-thick) solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+strong, b {
+  font-weight: 600;
+}
+
+small {
+  font-size: var(--font-size-small);
+}
+
+/* ============================================================================
+   CONTENEDORES ESPECIALES DEL DASHBOARD
+   ============================================================================ */
+
+/* Caja de sección unificada (Secciones 1 y 2) */
+.section-box {
+  background-color: var(--color-bg-white);
+  border-radius: var(--border-radius-lg);
+  padding: var(--spacing-xl);
+  margin-bottom: var(--spacing-xl);
+  box-shadow: var(--shadow-md);
+  border: var(--border-width) solid var(--color-border-light);
+}
+
+/* Contenedor con alineación centrada para título (Sección 1) */
+.section-box-title {
+  text-align: center !important;
+  display: block !important;
+  width: 100% !important;
+}
+
+/* Asegurar que todos los elementos hijos también estén centrados */
+.section-box-title *,
+.section-box-title *::before,
+.section-box-title *::after {
+  text-align: center !important;
+}
+
+/* Forzar centrado en todos los divs dentro de la sección de título */
+.section-box-title div,
+.section-box-title h1,
+.section-box-title h2,
+.section-box-title span,
+.section-box-title strong,
+.section-box-title p {
+  text-align: center !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+/* Forzar centrado en shiny-html-output y shiny-bound-output */
+.section-box-title .shiny-html-output,
+.section-box-title .shiny-bound-output,
+.section-box-title #project_name {
+  text-align: center !important;
+  display: inline !important;
+}
+
+/* Sección 1: Título del reporte */
+.report-title {
+  text-align: center !important;
+  font-size: var(--font-size-title);
+  font-weight: 700;
+  margin: 0 0 var(--spacing-md) 0;
+  color: var(--color-secondary);
+  letter-spacing: -0.5px;
+  font-family: var(--font-family-base);
+  display: block;
+  width: 100%;
+}
+
+.report-subtitle {
+  text-align: center !important;
+  font-size: 1.25rem;
+  font-weight: 400;
+  margin: 0;
+  color: var(--color-text-primary);
+  font-family: var(--font-family-base);
+  display: block;
+  width: 100%;
+}
+
+.report-subtitle strong {
+  font-weight: 600;
+  color: var(--color-accent);
+}
+
+/* Contenedor Shiny para output dinámico */
+#project_name {
+  display: inline;
+  text-align: center !important;
+}
+
+/* Forzar centrado en el span generado por uiOutput */
+#project_name span {
+  text-align: center !important;
+}
+
+/* Sección 2: Subtítulo interno de la caja */
+.section-subtitle {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--color-secondary);
+  margin: 0 0 var(--spacing-lg) 0;
+  padding-bottom: var(--spacing-sm);
+  border-bottom: 2px solid var(--color-border-light);
+  font-family: var(--font-family-base);
+  text-align: left;
+}
+
+/* Contenedor con alineación izquierda para filtros */
+.section-box-filters {
+  text-align: left;
+}
+
+/* Contenedor de cada filtro/información */
+.filter-item {
+  padding: 0 var(--spacing-sm);
+}
+
+.filter-label {
+  display: block;
+  font-size: var(--font-size-small);
+  font-weight: 600;
+  color: var(--color-accent);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+  font-family: var(--font-family-base);
+}
+
+.filter-label .info-tooltip {
+  font-weight: normal;
+  font-size: 0.9em;
+  color: #7f8c8d;
+  margin-left: 5px;
+  cursor: help;
+}
+
+/* Contenedor de información de texto */
+.info-text {
+  margin-top: var(--spacing-sm);
+}
+
+.info-project-meta {
+  margin-bottom: 15px;
+}
+
+.info-label {
+  display: block;
+  font-size: var(--font-size-xsmall);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  margin-bottom: var(--spacing-xs);
+  font-family: var(--font-family-base);
+}
+
+.info-value {
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  margin: 0;
+  line-height: 1.4;
+  font-family: var(--font-family-base);
+}
+
+/* Títulos de sección (Secciones 3, 4, 5, 6) */
+.section-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--color-secondary);
+  margin: var(--spacing-xl) 0 var(--spacing-lg) 0;
+  padding-bottom: var(--spacing-sm);
+  border-bottom: 3px solid var(--color-primary);
+  font-family: var(--font-family-base);
+}
+
+/* Descripción dentro de cajas */
+.box-description {
+  font-size: var(--font-size-small);
+  color: var(--color-text-secondary);
+  margin: 0 0 var(--spacing-md) 0;
+  padding: var(--spacing-sm) 0;
+  border-bottom: 1px solid var(--color-border-light);
+  font-style: italic;
+}
+
+.carousel-description {
+  text-align: center;
+  border-bottom: none;
+  margin-bottom: var(--spacing-sm);
+}
+
+/* Pie de página con logos - Imagen centrada sin contenedor adicional */
+.footer-logos-img {
+  display: block;
+  margin: 0 auto;
+  max-width: 55%;
+  max-height: 80px;
+  width: auto;
+  height: auto;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.05));
+}
+
+.footer-logos-box {
+  padding: 4px;
+  max-height: 80px;
+  display: flex; /* Usar flexbox */
+  align-items: center; /* Centrado vertical */
+  justify-content: center; /* Centrado horizontal */
+  min-height: 80px; /* Altura mínima para centrado vertical */
+}
+
+/* ============================================================================
+   SECCIÓN 3: TABLA DE ESPECIES
+   Tabla interactiva con ranking de especies fotografiadas
+   ============================================================================ */
+
+.species-table-container {
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: 200px;
+  margin-top: 10px;
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--border-radius-md);
+  background: var(--color-bg-white);
+}
+
+.species-table-container .dataTables_wrapper {
+  padding: 0;
+}
+
+.species-table-container table.dataTable {
+  width: 100% !important;
+  margin: 0 !important;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.species-table-container table.dataTable thead th {
+  background: var(--color-secondary);
+  color: var(--color-bg-white);
+  font-weight: 600;
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 2px solid var(--color-primary-dark);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  font-size: 0.85rem;
+}
+
+.species-table-container table.dataTable tbody td {
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--color-border-light);
+  color: var(--color-text-primary);
+  line-height: 1.3;
+}
+
+.species-table-container table.dataTable tbody tr:hover {
+  background-color: var(--color-primary-light);
+  transition: background-color var(--transition-fast);
+}
+
+.species-table-container table.dataTable tbody tr:nth-child(even) {
+  background-color: #f9f9f9;
+}
+
+.species-table-container table.dataTable tbody tr:nth-child(odd) {
+  background-color: var(--color-bg-white);
+}
+
+/* Columna de ranking - Destacada */
+.species-table-container table.dataTable tbody td:first-child {
+  font-weight: 600;
+  color: var(--color-secondary);
+  text-align: center;
+  width: 70px;
+}
+
+/* Columna de especie - Cursiva para nombres científicos */
+.species-table-container table.dataTable tbody td:nth-child(2) {
+  font-style: italic;
+  color: var(--color-text-primary);
+}
+
+/* Columna de número de imágenes - Centrada */
+.species-table-container table.dataTable tbody td:nth-child(3) {
+  text-align: center;
+  font-weight: 500;
+}
+
+/* Columna de eventos independientes - Centrada */
+.species-table-container table.dataTable tbody td:nth-child(4) {
+  text-align: center;
+  font-weight: 500;
+}
+
+/* Columna de tipo - Centrada */
+.species-table-container table.dataTable tbody td:nth-child(5) {
+  text-align: center;
+  font-size: 0.8rem;
+}
+
+/* Scroll bar personalizado */
+.species-table-container::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.species-table-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.species-table-container::-webkit-scrollbar-thumb {
+  background: var(--color-secondary);
+  border-radius: 3px;
+}
+
+.species-table-container::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary-dark);
+}
+
+/* Ocultar elementos innecesarios de DataTables */
+.species-table-container .dataTables_length,
+.species-table-container .dataTables_info,
+.species-table-container .dataTables_paginate {
+  display: none !important;
+}
+
+/* Ajustar campo de búsqueda */
+.species-table-container .dataTables_filter {
+  margin-bottom: 8px;
+  text-align: left !important;
+}
+
+.species-table-container .dataTables_filter label {
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+  display: block;
+  text-align: left !important;
+}
+
+.species-table-container .dataTables_filter input {
+  border: 1px solid var(--color-border-light);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 0.85rem;
+  margin-left: 5px;
+}
+
+.species-table-container .dataTables_filter input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+/* Botón de descarga de tabla */
+.download-button-container {
+  text-align: center; /* Centrar botón */
+  margin-top: 10px;
+}
+
+/* Sección de exportar dashboard */
+.export-section-compact {
+  margin-bottom: 15px;
+}
+
+.export-buttons-compact {
+  text-align: center; /* Centrar botón de exportar */
+  padding: 10px 0;
+}
+
+.btn-export-compact {
+  background-color: var(--color-primary);
+  color: white;
+  border: none;
+  padding: 12px 30px;
+  font-size: 16px;
+  border-radius: var(--border-radius-md);
+  cursor: pointer;
+  transition: background-color var(--transition-base), transform var(--transition-fast);
+  box-shadow: var(--shadow-md);
+}
+
+.btn-export-compact:hover:not(:disabled) {
+  background-color: var(--color-primary-dark);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+.btn-export-compact:disabled {
+  background-color: #95a5a6;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* ============================================================================
+   SECCIÓN 4: INDICADORES OPERACIONALES Y DE BIODIVERSIDAD
+   Tabla HTML con 2 filas × 9 columnas para mostrar métricas clave
+   ============================================================================ */
+
+.indicators-table-real {
+  width: 100% !important;
+  border-collapse: separate !important;
+  border-spacing: 0;
+  margin: 12px 0;
+  table-layout: fixed;
+  box-shadow: var(--shadow-md);
+  border-radius: var(--border-radius-md);
+  overflow: hidden;
+  background: linear-gradient(to bottom, var(--color-bg-subtle) 0%, var(--color-bg-white) 100%);
+  animation: fadeInScale var(--transition-slow) ease-out;
+}
+
+/* Encabezados de tabla con emojis */
+.indicators-table-real th {
+  text-align: center !important;
+  padding: 12px 6px 10px 6px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  letter-spacing: 0.5px;
+  line-height: 1.3;
+  border-bottom: 3px solid var(--color-primary);
+  background: linear-gradient(135deg, var(--color-bg-subtle) 0%, var(--color-border-light) 100%);
+  width: 11.11%; /* 100% / 9 columnas */
+  vertical-align: middle !important;
+  position: relative;
+  transition: all var(--transition-base);
+}
+
+.indicators-table-real th:hover {
+  background: linear-gradient(135deg, var(--color-border-light) 0%, #e2e8f0 100%);
+  transform: translateY(-2px);
+}
+
+/* Emojis en encabezados - tamaño aumentado y centrado perfecto */
+.indicators-table-real .emoji-icon {
+  display: block;
+  font-size: 2.2rem;
+  line-height: 1.1;
+  margin: 0 auto 6px auto;
+  text-align: center !important;
+}
+
+/* Etiquetas de texto debajo de emojis */
+.indicators-table-real .emoji-label {
+  display: block;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  font-weight: 700;
+  text-align: center !important;
+  line-height: 1.2;
+  letter-spacing: 0.6px;
+}
+
+/* Separadores visuales entre grupos */
+.indicators-table-real th:nth-child(3)::after,
+.indicators-table-real th:nth-child(6)::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 20%;
+  height: 60%;
+  width: 2px;
+  background: linear-gradient(to bottom, transparent 0%, var(--color-border-light) 50%, transparent 100%);
+}
+
+/* Celdas de datos con valores numéricos */
+.indicators-table-real td {
+  text-align: center !important;
+  padding: 14px 6px 12px 6px;
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: var(--color-primary);
+  line-height: 1.2;
+  font-family: var(--font-family-base);
+  border: none;
+  width: 11.11%;
+  vertical-align: middle !important;
+  background-color: var(--color-bg-white);
+  position: relative;
+  transition: all var(--transition-fast);
+}
+
+.indicators-table-real td:hover {
+  background-color: var(--color-bg-subtle);
+  transform: scale(1.05);
+  color: var(--color-primary-dark);
+}
+
+/* Contenedor de valores - centrado perfecto */
+.indicators-table-real .stat-value {
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  width: 100% !important;
+  height: 100% !important;
+  text-align: center !important;
+}
+
+/* Outputs de Shiny - forzar centrado absoluto */
+.indicators-table-real td .shiny-text-output,
+.indicators-table-real td .shiny-bound-output,
+.indicators-table-real .stat-value span,
+.indicators-table-real .stat-value div {
+  display: inline-block !important;
+  text-align: center !important;
+  width: 100% !important;
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
+}
+
+.indicators-table-real th * {
+  text-align: center !important;
+}
+
+/* Separadores entre grupos de datos */
+.indicators-table-real td:nth-child(3)::after,
+.indicators-table-real td:nth-child(6)::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 25%;
+  height: 50%;
+  width: 2px;
+  background: linear-gradient(to bottom, transparent 0%, var(--color-border-light) 50%, transparent 100%);
+}
+
+/* TODOS LOS VALORES - Estilo uniforme y consistente */
+.indicators-table-real td {
+  color: var(--color-primary-dark) !important;
+  font-size: 1.75rem !important;
+  font-weight: 700 !important;
+}
+
+/* Fondos sutiles por grupo (mantienen diferenciación visual sin afectar texto) */
+.indicators-table-real td:nth-child(-n+3) {
+  background: linear-gradient(135deg, #fff5f5 0%, var(--color-bg-white) 100%);
+}
+
+.indicators-table-real td:nth-child(n+4):nth-child(-n+6) {
+  background: linear-gradient(135deg, #f0fff4 0%, var(--color-bg-white) 100%);
+}
+
+.indicators-table-real td:nth-child(n+7):nth-child(-n+9) {
+  background: linear-gradient(135deg, #f0fff4 0%, var(--color-bg-white) 100%);
+}
+
+/* Animación de entrada */
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Responsividad tablets */
+@media (max-width: 1024px) {
+  .indicators-table-real .emoji-icon {
+    font-size: 2.5rem;
+    margin-bottom: 8px;
+  }
+  
+  .indicators-table-real .emoji-label {
+    font-size: 0.65rem;
+  }
+  
+  .indicators-table-real th {
+    padding: 16px 6px 14px 6px;
+  }
+  
+  .indicators-table-real td {
+    font-size: 1.6rem;
+    padding: 18px 6px 16px 6px;
+  }
+}
+
+/* Responsividad móviles */
+@media (max-width: 768px) {
+  .indicators-table-real {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: var(--border-radius-sm);
+  }
+  
+  .indicators-table-real .emoji-icon {
+    font-size: 2rem;
+    margin-bottom: 6px;
+  }
+  
+  .indicators-table-real .emoji-label {
+    font-size: 0.6rem;
+  }
+  
+  .indicators-table-real th {
+    padding: 12px 5px;
+    min-width: 90px;
+  }
+  
+  .indicators-table-real td {
+    font-size: 1.5rem;
+    padding: 14px 5px;
+    min-width: 90px;
+  }
+}
+
+@media (max-width: 480px) {
+  .indicators-table-real .emoji-icon {
+    font-size: 1.6rem;
+    margin-bottom: 4px;
+  }
+  
+  .indicators-table-real .emoji-label {
+    font-size: 0.55rem;
+    letter-spacing: 0.5px;
+  }
+  
+  .indicators-table-real th {
+    min-width: 75px;
+    padding: 10px 4px;
+  }
+  
+  .indicators-table-real td {
+    font-size: 1.3rem;
+    min-width: 75px;
+    padding: 12px 4px;
+  }
+  
+  /* Scroll horizontal suave en móviles pequeños */
+  .indicators-table-real {
+    margin: 10px -5px;
+  }
+}
+
+/* Landscape móviles - tabla horizontal optimizada */
+@media (max-width: 768px) and (orientation: landscape) {
+  .indicators-table-real .emoji-icon {
+    font-size: 1.8rem;
+    margin-bottom: 4px;
+  }
+  
+  .indicators-table-real .emoji-label {
+    font-size: 0.55rem;
+  }
+  
+  .indicators-table-real th {
+    padding: 10px 5px;
+  }
+  
+  .indicators-table-real td {
+    font-size: 1.4rem;
+    padding: 12px 5px;
+  }
+}
+
+/* Pantallas muy grandes (> 1440px) - limitar ancho máximo */
+@media (min-width: 1440px) {
+  body {
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  
+  .indicators-table-real .emoji-icon {
+    font-size: 3.5rem;
+  }
+  
+  .indicators-table-real .emoji-label {
+    font-size: 0.75rem;
+  }
+  
+  .indicators-table-real td {
+    font-size: 2.25rem;
+  }
+}
+
+/* ============================================================================
+   ELEMENTOS DEL DASHBOARD (CAJAS Y CONTENEDORES)
+   ============================================================================ */
+
+/* Cajas principales del dashboard */
+.box {
+  background-color: var(--color-bg-white);
+  border-radius: var(--border-radius-lg);
+  border: var(--border-width) solid var(--color-border-light);
+  box-shadow: var(--shadow-md);
+  margin-bottom: var(--spacing-lg);
+  transition: box-shadow var(--transition-base);
+  overflow: visible;
+}
+
+.box:hover {
+  box-shadow: var(--shadow-lg);
+}
+
+.box-header {
+  background: linear-gradient(to right, var(--color-bg-subtle) 0%, var(--color-bg-white) 100%);
+  border-bottom: var(--border-width-thick) solid var(--color-border-primary);
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-radius: var(--border-radius-lg) var(--border-radius-lg) 0 0;
+}
+
+.box-title {
+  font-size: var(--font-size-large);
+  font-weight: 600;
+  color: var(--color-secondary);
+  margin: 0;
+  letter-spacing: -0.2px;
+  font-family: var(--font-family-base);
+}
+
+.box-body {
+  padding: var(--spacing-lg);
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Alturas predefinidas para cajas */
+.box-sm { 
+  height: var(--box-height-sm);
+  overflow: hidden;
+}
+.box-md { 
+  height: var(--box-height-md);
+  overflow: hidden;
+}
+
+/* Excepción para caja del carrusel - permitir overflow para flechas */
+.box:has(#cameraTrapImages) {
+  overflow: visible !important;
+  height: auto !important;
+  min-height: 320px; /* Altura mínima para acomodar carrusel */
+}
+
+.box:has(#cameraTrapImages) .box-body {
+  overflow: visible !important;
+  padding: var(--spacing-lg);
+  min-height: 280px; /* Espacio suficiente para carrusel + flechas */
+}
+.box-lg { 
+  height: var(--box-height-lg);
+  overflow: hidden;
+}
+.box-xl { 
+  height: var(--box-height-xl);
+  overflow: hidden;
+}
+
+/* Contenedor específico para filtros - altura reducida */
+.box:has(.selectize-control) .box-body {
+  min-height: 50px;
+  padding-bottom: 30px;
+  overflow: visible;
+}
+
+/* Cajas con gráficos - ajuste del body */
+.box-xl .box-body,
+.box-lg .box-body {
+  padding: var(--spacing-md);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
+
+.box-xl .shiny-plot-output,
+.box-lg .shiny-plot-output,
+.box-lg .leaflet {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* Textos informativos dentro de cajas */
+.box b {
+  font-size: var(--font-size-xsmall);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  display: block;
+  margin-bottom: var(--spacing-sm);
+  font-family: var(--font-family-base);
+}
+
+.box h4 {
+  font-size: 1em;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin-top: var(--spacing-xs);
+  line-height: 1.4;
+  font-family: var(--font-family-base);
+}
+
+/* Imágenes dentro de cajas */
+.box img {
+  border-radius: var(--border-radius-sm);
+}
+
+/* ============================================================================
+   FORMULARIOS Y CONTROLES
+   ============================================================================ */
+
+.form-group {
+  margin-bottom: 1em;
+  position: relative;
+}
+
+.form-group label {
+  display: block;
+  font-size: var(--font-size-xsmall);
+  font-weight: 600;
+  color: var(--color-accent);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 0.5em;
+  font-family: var(--font-family-base);
+}
+
+.form-control,
+.selectize-input,
+select,
+input[type="text"],
+input[type="email"],
+input[type="number"],
+textarea {
+  width: 100%;
+  padding: 6px 10px;
+  font-size: var(--font-size-small);
+  border: var(--border-width-thick) solid var(--color-border-light);
+  border-radius: var(--border-radius-sm);
+  background-color: var(--color-bg-white);
+  transition: all var(--transition-base);
+  font-family: var(--font-family-base);
+}
+
+.form-control:focus,
+.selectize-input.focus,
+select:focus,
+input:focus,
+textarea:focus {
+  border-color: var(--color-primary);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--color-primary-light);
+}
+
+/* Sistema de z-index para selectores */
+.selectize-input {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.selectize-control {
+  position: relative;
+  z-index: var(--z-dropdown);
+}
+
+/* Primera lista desplegable (prioridad alta) */
+.form-group:first-of-type .selectize-control {
+  z-index: var(--z-dropdown-primary);
+}
+
+.form-group:first-of-type .selectize-dropdown {
+  z-index: var(--z-dropdown-menu-primary);
+}
+
+/* Segunda lista desplegable (prioridad normal) */
+.form-group:nth-of-type(2) .selectize-control {
+  z-index: var(--z-dropdown);
+}
+
+.form-group:nth-of-type(2) .selectize-dropdown {
+  z-index: var(--z-dropdown-menu);
+}
+
+.selectize-dropdown {
+  z-index: var(--z-dropdown-menu);
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  border: var(--border-width-thick) solid var(--color-border-primary);
+  border-radius: var(--border-radius-sm);
+  margin-top: 2px;
+  box-shadow: var(--shadow-lg);
+  background-color: var(--color-bg-white);
+  max-height: 200px;
+  overflow-y: auto;
+  font-family: var(--font-family-base);
+}
+
+.selectize-dropdown-content {
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+/* Botones */
+button,
+.btn,
+input[type="submit"],
+input[type="button"] {
+  display: inline-block;
+  padding: 10px 20px;
+  font-size: var(--font-size-small);
+  font-weight: 600;
+  text-align: center;
+  border: none;
+  border-radius: var(--border-radius-sm);
+  background-color: var(--color-primary);
+  color: var(--color-bg-white);
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+button:hover,
+.btn:hover,
+input[type="submit"]:hover,
+input[type="button"]:hover {
+  background-color: var(--color-primary-dark);
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-1px);
+}
+
+button:active,
+.btn:active,
+input[type="submit"]:active,
+input[type="button"]:active {
+  transform: translateY(0);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Contenedor de botones de control */
+.control-buttons-container {
+  text-align: center;
+  margin-top: 10px;
+  margin-bottom: 10px;
+}
+
+/* Botón aplicar selección */
+.btn-apply-selection {
+  background-color: #0397d6;
+  border: none;
+  color: white;
+  padding: 10px 30px;
+  font-size: 16px;
+  margin-right: 10px;
+}
+
+.btn-apply-selection:hover {
+  background-color: #026a9e;
+}
+
+/* Botón limpiar selección */
+.btn-clear-selection {
+  background-color: #95a5a6;
+  border: none;
+  color: white;
+  padding: 10px 30px;
+  font-size: 16px;
+}
+
+.btn-clear-selection:hover {
+  background-color: #7f8c8d;
+}
+
+/* ============================================================================
+   IMÁGENES Y MULTIMEDIA
+   ============================================================================ */
+
+img {
+  max-width: 100%;
+  height: auto;
+  border: 0;
+  display: block;
+}
+
+.img-responsive {
+  width: 100%;
+  height: auto;
+}
+
+/* ============================================================================
+   CARRUSEL SLICK
+   ============================================================================ */
+
+.slick-slider {
+  position: relative;
+  display: block;
+  box-sizing: border-box;
+  padding: 30px 0 40px 0 !important; /* Padding superior 30px, inferior 40px para dots */
+  margin: 0;
+}
+
+/* Asegurar padding específico para el carrusel de favoritos */
+#favoriteSlider.slick-slider,
+.slick-initialized.slick-slider {
+  padding: 35px 0 45px 0 !important; /* Aún más espacio vertical */
+}
+
+.slick-list {
+  position: relative;
+  overflow: hidden;
+  display: block;
+  margin: 0;
+  padding: 0;
+}
+
+.slick-track {
+  position: relative;
+  top: 0;
+  left: 0;
+  display: flex; /* Cambiar a flexbox para alineación vertical */
+  align-items: center; /* Alinear imágenes al centro vertical */
+}
+
+.slick-slide {
+  float: left;
+  height: 100%;
+  min-height: 1px;
+  display: flex !important; /* Forzar flex en slides */
+  align-items: center; /* Centrar contenido verticalmente */
+  justify-content: center; /* Centrar contenido horizontalmente */
+}
+
+.slick-slide img {
+  display: block;
+  border-radius: var(--border-radius-sm);
+}
+
+.slick-prev,
+.slick-next {
+  font-size: 0;
+  line-height: 0;
+  position: absolute;
+  top: 50%;
+  display: block;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  transform: translateY(-50%);
+  cursor: pointer;
+  color: transparent;
+  border: none;
+  outline: none;
+  background: transparent;
+  z-index: 10;
+  margin-top: -20px; /* Ajuste para centrar mejor considerando el padding */
+}
+
+.slick-prev:before,
+.slick-next:before {
+  font-size: 28px;
+  line-height: 1;
+  color: var(--color-primary);
+  opacity: 0.75;
+  transition: opacity var(--transition-base);
+}
+
+.slick-prev:hover:before,
+.slick-next:hover:before {
+  opacity: 1;
+}
+
+.slick-prev {
+  left: 10px;
+}
+
+.slick-next {
+  right: 10px;
+}
+
+/* Configuración específica para carrusel con 5 imágenes */
+#favoriteSlider .slick-slide {
+  padding: 0 var(--spacing-sm);
+  box-sizing: border-box;
+}
+
+#favoriteSlider .slick-slide img {
+  width: 100%;
+  height: 240px;
+  object-fit: cover;
+  border-radius: var(--border-radius-md);
+  box-shadow: var(--shadow-lg);
+  transition: transform var(--transition-base), box-shadow var(--transition-base);
+}
+
+#favoriteSlider .slick-slide img:hover {
+  transform: scale(1.05);
+  box-shadow: var(--shadow-hover);
+}
+
+#favoriteSlider .slick-list {
+  margin: 0 60px; /* Margen lateral aumentado para separar contenido de las flechas */
+  padding: 10px var(--spacing-sm); /* Padding vertical adicional */
+}
+
+#favoriteSlider .slick-dots {
+  bottom: -35px;
+}
+
+#favoriteSlider .slick-dots li button:before {
+  font-size: 10px;
+  color: var(--color-primary);
+}
+
+#favoriteSlider .slick-dots li.slick-active button:before {
+  color: var(--color-primary);
+}
+
+
+/* ============================================================================
+   GRÁFICOS Y VISUALIZACIONES
+   ============================================================================ */
+
+.shiny-plot-output {
+  display: block;
+  width: 100% !important;
+  height: auto;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.shiny-plot-output img {
+  width: 100% !important;
+  height: auto !important;
+  max-width: 100%;
+  object-fit: contain;
+}
+
+.plotly {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100%;
+  border-radius: 4px;
+  background: white;
+}
+
+/* Contenedor específico para gráfica de actividad circadiana */
+#activityPattern {
+  width: 100% !important;
+  height: 420px !important;
+  display: block !important;
+}
+
+#activityPattern .plotly.html-widget {
+  width: 100% !important;
+  height: 420px !important;
+}
+
+#activityPattern .js-plotly-plot .plotly .main-svg,
+#activityPattern .js-plotly-plot .plotly svg {
+  width: 100% !important;
+  height: 420px !important;
+}
+
+/* Barra de herramientas de plotly */
+.plotly .modebar {
+  background: transparent !important;
+  top: 5px !important;
+  right: 5px !important;
+}
+
+.plotly .modebar-btn {
+  color: #7f8c8d !important;
+  transition: all var(--transition-fast);
+}
+
+.plotly .modebar-btn:hover {
+  color: #2c3e50 !important;
+  background: rgba(52, 152, 219, 0.1) !important;
+}
+
+.plotly .modebar-btn svg {
+  opacity: 0.7;
+}
+
+.plotly .modebar-btn:hover svg {
+  opacity: 1;
+}
+
+/* Tooltips de plotly */
+.plotly .hoverlayer .hovertext {
+  font-family: var(--font-family-base) !important;
+  font-size: 12px !important;
+  background-color: rgba(44, 62, 80, 0.95) !important;
+  border-radius: 4px !important;
+  padding: 8px 12px !important;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2) !important;
+}
+
+.plotly .hoverlayer .hovertext path {
+  fill: rgba(44, 62, 80, 0.95) !important;
+}
+
+/* Leyenda de plotly */
+.plotly .legend {
+  overflow-y: auto !important;
+  max-height: 360px !important;
+}
+
+.plotly .plotly-graph-div {
+  transition: opacity var(--transition-base);
+}
+
+.plotly text {
+  font-family: var(--font-family-base) !important;
+}
+
+/* ============================================================================
+   MAPAS LEAFLET
+   ============================================================================ */
+
+.leaflet-container {
+  font-family: inherit;
+  border-radius: var(--border-radius-sm);
+  border: var(--border-width) solid var(--color-border-light);
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.box-lg .leaflet-container {
+  height: 340px !important;
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: var(--border-radius-sm);
+  box-shadow: var(--shadow-lg);
+}
+
+.leaflet-popup-content {
+  font-size: var(--font-size-small);
+  line-height: 1.5;
+}
+
+.info.legend {
+  background: var(--color-bg-white);
+  padding: 10px;
+  border-radius: var(--border-radius-sm);
+  box-shadow: var(--shadow-lg);
+  font-size: var(--font-size-small);
+}
+
+/* Estilos para asegurar visibilidad en exportación con html2canvas */
+.leaflet-tile-pane,
+.leaflet-overlay-pane,
+.leaflet-marker-pane,
+.leaflet-shadow-pane,
+.leaflet-popup-pane {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.leaflet-marker-icon,
+.leaflet-marker-shadow {
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: block !important;
+}
+
+.leaflet-tile {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+/* Asegurar z-index correcto para captura */
+.leaflet-pane {
+  z-index: auto;
+}
+
+.leaflet-tile-pane { z-index: 200; }
+.leaflet-overlay-pane { z-index: 400; }
+.leaflet-shadow-pane { z-index: 500; }
+.leaflet-marker-pane { z-index: 600; }
+.leaflet-tooltip-pane { z-index: 650; }
+.leaflet-popup-pane { z-index: 700; }
+
+/* ============================================================================
+   TABLA DE INDICADORES POR PERÍODO (DT)
+   ============================================================================ */
+
+#indicadores_consolidado_table_wrapper {
+  width: 100%;
+  overflow-x: auto;
+}
+
+#indicadores_consolidado_table thead th {
+  background-color: #3498db;
+  color: white;
+  font-weight: 600;
+  text-align: center;
+  padding: 10px;
+  border: 1px solid #ecf0f1;
+}
+
+#indicadores_consolidado_table tbody td {
+  text-align: center;
+  padding: 8px;
+  border: 1px solid #ecf0f1;
+}
+
+#indicadores_consolidado_table tbody td:first-child {
+  text-align: left;
+  font-weight: bold;
+  background-color: #f8f9fa;
+}
+
+#indicadores_consolidado_table tbody tr:last-child {
+  background-color: #e8f4f8;
+  font-weight: 700;
+  font-size: 1.05em;
+}
+
+#indicadores_consolidado_table tbody tr:last-child td {
+  border-top: 2px solid #3498db;
+}
+
+#indicadores_consolidado_table tbody tr:hover {
+  background-color: #f0f8ff;
+}
+
+#indicadores_consolidado_table tbody tr:last-child:hover {
+  background-color: #e8f4f8;
+}
+
+
+/* ============================================================================
+   UTILIDADES
+   ============================================================================ */
+
+.text-center { text-align: center; }
+.text-right { text-align: right; }
+.text-left { text-align: left; }
+.hidden { display: none !important; }
+
+.clearfix::after {
+  content: "";
+  display: table;
+  clear: both;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+
+/* ============================================================================
+   RESPONSIVIDAD
+   ============================================================================ */
+
+/* Tablets y pantallas medianas (768px - 1024px) */
+@media (max-width: 1024px) {
+  :root {
+    --font-size-base: 15px;
+    --font-size-title: 1.75rem;
+    --spacing-xl: 18px;
+    --spacing-lg: 14px;
+  }
+  
+  .section-box {
+    padding: var(--spacing-lg) var(--spacing-md);
+    margin-bottom: var(--spacing-lg);
+  }
+  
+  .report-title {
+    font-size: 1.75rem;
+    line-height: 1.3;
+    margin-bottom: var(--spacing-md);
+  }
+  
+  .report-subtitle { font-size: 1.125rem; line-height: 1.4; }
+  .section-subtitle { font-size: 1rem; }
+  .section-title { font-size: 1.375rem; }
+  .box-title { font-size: 1.0625rem; }
+  
+  .filter-item { padding: 0 var(--spacing-xs); }
+  
+  .form-control,
+  .selectize-input {
+    font-size: 0.9375rem;
+    padding: var(--spacing-sm) 10px;
+  }
+  
+  .footer-logos-img {
+    max-width: 90%;
+    margin: var(--spacing-md) auto;
+  }
+  
+  .box { margin-bottom: var(--spacing-md); }
+  .box-header { padding: 10px var(--spacing-md); }
+  .box-body { padding: var(--spacing-md); }
+  .box-description { font-size: 0.875rem; margin-bottom: var(--spacing-sm); }
+  
+  .box-sm, .box-md, .box-lg, .box-xl {
+    height: auto !important;
+    min-height: 250px;
+  }
+  
+  #favoriteSlider .slick-slide img {
+    height: 200px;
+    object-fit: cover;
+  }
+  
+  .slick-prev { left: -25px; }
+  .slick-next { right: -25px; }
+  .slick-prev:before, .slick-next:before { font-size: 24px; }
+  
+  .indicators-table-real .emoji-icon {
+    font-size: 2.5rem;
+    margin-bottom: 8px;
+  }
+  
+  .indicators-table-real .emoji-label { font-size: 0.65rem; }
+  .indicators-table-real th { padding: 16px 6px 14px 6px; }
+  .indicators-table-real td {
+    font-size: 1.6rem;
+    padding: 18px 6px 16px 6px;
+  }
+  
+  .box-lg .leaflet-container { height: 320px !important; }
+}
+
+/* Tablets pequeñas y móviles grandes (481px - 768px) */
+@media (max-width: 768px) {
+  :root {
+    --font-size-base: 14px;
+    --font-size-title: 1.5rem;
+    --spacing-xl: 16px;
+    --spacing-lg: 12px;
+    --spacing-md: 10px;
+    --box-height-sm: auto;
+    --box-height-md: auto;
+    --box-height-lg: auto;
+    --box-height-xl: auto;
+  }
+  
+  body { padding: 0 var(--spacing-sm); }
+  
+  h1 { font-size: 1.75em; }
+  h2 { font-size: 1.5em; }
+  h3 { font-size: 1.25em; }
+  h4 { font-size: 1.125em; }
+  
+  .section-box {
+    padding: var(--spacing-md);
+    margin-bottom: var(--spacing-md);
+    border-radius: var(--border-radius-md);
+  }
+  
+  .report-title {
+    font-size: 1.5rem;
+    line-height: 1.3;
+    margin-bottom: var(--spacing-sm);
+    word-wrap: break-word;
+  }
+  
+  .report-subtitle { font-size: 1rem; line-height: 1.4; }
+  .section-subtitle { font-size: 1rem; margin-bottom: var(--spacing-md); }
+  .section-title {
+    font-size: 1.25rem;
+    margin: var(--spacing-lg) 0 var(--spacing-md) 0;
+  }
+  .box-title { font-size: 1rem; line-height: 1.4; }
+  
+  .filter-item {
+    padding: var(--spacing-sm) 0;
+    margin-bottom: var(--spacing-md);
+    border-bottom: 1px solid var(--color-border-light);
+  }
+  
+  .filter-item:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+  }
+  
+  .filter-label { font-size: 0.75rem; margin-bottom: var(--spacing-xs); }
+  .info-label { font-size: 0.6875rem; }
+  .info-value { font-size: 0.9375rem; line-height: 1.3; }
+  
+  .form-control,
+  .selectize-input {
+    font-size: 0.875rem;
+    padding: var(--spacing-sm) var(--spacing-sm);
+  }
+  
+  .selectize-dropdown {
+    max-height: 180px;
+    font-size: 0.875rem;
+  }
+  
+  .box { margin-bottom: var(--spacing-md); border-radius: var(--border-radius-md); }
+  .box-header { padding: var(--spacing-sm) var(--spacing-md); }
+  .box-body { padding: var(--spacing-md); }
+  .box-description {
+    font-size: 0.8125rem;
+    margin-bottom: var(--spacing-sm);
+    padding: var(--spacing-xs) 0;
+  }
+  
+  .box-sm, .box-md, .box-lg, .box-xl {
+    height: auto !important;
+    min-height: 200px;
+  }
+  
+  .footer-logos-img {
+    max-width: 95%;
+    margin: var(--spacing-sm) auto;
+  }
+  
+  #favoriteSlider .slick-slide { padding: 0 var(--spacing-xs); }
+  #favoriteSlider .slick-slide img {
+    height: 180px;
+    object-fit: cover;
+  }
+  #favoriteSlider .slick-dots { bottom: -30px; }
+  #favoriteSlider .slick-dots li button:before { font-size: 8px; }
+  
+  .slick-prev, .slick-next {
+    width: 35px;
+    height: 35px;
+  }
+  .slick-prev { left: -15px; }
+  .slick-next { right: -15px; }
+  .slick-prev:before, .slick-next:before { font-size: 22px; }
+  
+  .indicators-table-real {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: var(--border-radius-sm);
+  }
+  
+  .indicators-table-real .emoji-icon {
+    font-size: 2rem;
+    margin-bottom: 6px;
+  }
+  
+  .indicators-table-real .emoji-label { font-size: 0.6rem; }
+  .indicators-table-real th {
+    padding: 12px 5px;
+    min-width: 90px;
+  }
+  .indicators-table-real td {
+    font-size: 1.5rem;
+    padding: 14px 5px;
+    min-width: 90px;
+  }
+  
+  .box-lg .leaflet-container { height: 280px !important; }
+  
+  .leaflet-popup-content { font-size: 0.8125rem; }
+  .leaflet-control-zoom a {
+    width: 28px;
+    height: 28px;
+    line-height: 28px;
+    font-size: 16px;
+  }
+  
+  .info.legend {
+    padding: 8px;
+    font-size: var(--font-size-xsmall);
+  }
+  
+  .plotly { font-size: 10px; }
+  .plotly .xtick text,
+  .plotly .ytick text { font-size: 9px !important; }
+  .plotly .modebar { display: none !important; }
+  
+  .btn-export-compact {
+    width: 100%;
+    max-width: 280px;
+    padding: 12px 24px;
+  }
+  
+  #indicadores_consolidado_table { font-size: 0.85em; }
+  #indicadores_consolidado_table thead th,
+  #indicadores_consolidado_table tbody td {
+    padding: 6px 4px;
+  }
+}
+
+/* Móviles pequeños (hasta 480px) */
+@media (max-width: 480px) {
+  :root {
+    --font-size-base: 13px;
+    --font-size-title: 1.25rem;
+    --spacing-xl: 14px;
+    --spacing-lg: 10px;
+    --spacing-md: 8px;
+    --spacing-sm: 6px;
+  }
+  
+  body { padding: 0 var(--spacing-xs); }
+  
+  h1 { font-size: 1.5em; }
+  h2 { font-size: 1.25em; }
+  h3 { font-size: 1.125em; }
+  h4 { font-size: 1em; }
+  
+  .section-box {
+    padding: var(--spacing-sm);
+    margin-bottom: var(--spacing-sm);
+    border-radius: var(--border-radius-sm);
+  }
+  
+  .report-title {
+    font-size: 1.25rem;
+    line-height: 1.3;
+    margin-bottom: var(--spacing-xs);
+    word-wrap: break-word;
+    hyphens: auto;
+  }
+  
+  .report-subtitle { font-size: 0.9375rem; line-height: 1.4; }
+  .section-subtitle { font-size: 0.9375rem; margin-bottom: var(--spacing-sm); }
+  .section-title {
+    font-size: 1.125rem;
+    margin: var(--spacing-md) 0 var(--spacing-sm) 0;
+    line-height: 1.3;
+  }
+  .box-title { font-size: 0.9375rem; line-height: 1.3; }
+  
+  .filter-item {
+    padding: var(--spacing-xs) 0;
+    margin-bottom: var(--spacing-sm);
+  }
+  
+  .filter-label { font-size: 0.6875rem; margin-bottom: 4px; }
+  .info-label { font-size: 0.625rem; }
+  .info-value { font-size: 0.875rem; line-height: 1.3; }
+  
+  .form-control,
+  .selectize-input {
+    font-size: 0.8125rem;
+    padding: 10px var(--spacing-sm);
+    min-height: 44px;
+  }
+  
+  .selectize-dropdown {
+    max-height: 150px;
+    font-size: 0.8125rem;
+  }
+  
+  .selectize-dropdown-content { max-height: 130px; }
+  
+  .box { margin-bottom: var(--spacing-sm); border-radius: var(--border-radius-sm); }
+  .box-header { padding: var(--spacing-xs) var(--spacing-sm); }
+  .box-body { padding: var(--spacing-sm); }
+  .box-description {
+    font-size: 0.75rem;
+    margin-bottom: var(--spacing-xs);
+    padding: 4px 0;
+    line-height: 1.4;
+  }
+  
+  .box-sm, .box-md, .box-lg, .box-xl {
+    height: auto !important;
+    min-height: 150px;
+  }
+  
+  .footer-logos-img {
+    max-width: 100%;
+    margin: var(--spacing-xs) auto;
+  }
+  
+  .slick-prev, .slick-next {
+    width: 30px;
+    height: 30px;
+  }
+  .slick-prev { left: -10px; }
+  .slick-next { right: -10px; }
+  .slick-prev:before, .slick-next:before { font-size: 18px; }
+  
+  #favoriteSlider .slick-slide { padding: 0 4px; }
+  #favoriteSlider .slick-slide img {
+    height: 140px;
+    object-fit: cover;
+    border-radius: var(--border-radius-sm);
+  }
+  #favoriteSlider .slick-dots { bottom: -25px; }
+  #favoriteSlider .slick-dots li button:before { font-size: 7px; }
+  
+  button, .btn, input[type="submit"], input[type="button"] {
+    padding: 10px 16px;
+    min-height: 44px;
+    font-size: 0.875rem;
+  }
+  
+  .indicators-table-real .emoji-icon {
+    font-size: 1.6rem;
+    margin-bottom: 4px;
+  }
+  
+  .indicators-table-real .emoji-label {
+    font-size: 0.55rem;
+    letter-spacing: 0.5px;
+  }
+  
+  .indicators-table-real th {
+    min-width: 75px;
+    padding: 10px 4px;
+  }
+  
+  .indicators-table-real td {
+    font-size: 1.3rem;
+    min-width: 75px;
+    padding: 12px 4px;
+  }
+  
+  .indicators-table-real { margin: 10px -5px; }
+  
+  .box-lg .leaflet-container { height: 240px !important; }
+  
+  .leaflet-popup-content {
+    font-size: 0.75rem;
+    padding: 8px;
+  }
+  
+  .leaflet-control-zoom a {
+    width: 26px;
+    height: 26px;
+    line-height: 26px;
+  }
+  
+  .info.legend {
+    padding: 6px;
+    font-size: 0.6875rem;
+  }
+}
+
+/* Modo landscape en móviles - optimizar espacio vertical */
+@media (max-width: 768px) and (orientation: landscape) {
+  :root {
+    --spacing-xl: 12px;
+    --spacing-lg: 8px;
+    --spacing-md: 6px;
+  }
+  
+  .section-box {
+    padding: var(--spacing-sm) var(--spacing-md);
+    margin-bottom: var(--spacing-sm);
+  }
+  
+  .report-title {
+    font-size: 1.125rem;
+    margin-bottom: var(--spacing-xs);
+    line-height: 1.2;
+  }
+  
+  .report-subtitle { font-size: 0.875rem; line-height: 1.3; }
+  .section-title {
+    font-size: 1rem;
+    margin: var(--spacing-sm) 0 var(--spacing-xs) 0;
+  }
+  .box-title { font-size: 0.9375rem; }
+  
+  .box { margin-bottom: var(--spacing-sm); }
+  .box-header { padding: 6px var(--spacing-md); }
+  .box-body { padding: var(--spacing-sm); }
+  .box-description {
+    font-size: 0.75rem;
+    margin-bottom: 4px;
+    padding: 2px 0;
+  }
+  
+  .box-sm, .box-md, .box-lg, .box-xl { min-height: 150px; }
+  
+  .footer-logos-img {
+    max-width: 100%;
+    margin: var(--spacing-xs) auto;
+  }
+  
+  .filter-item {
+    padding: 4px var(--spacing-xs);
+    margin-bottom: var(--spacing-xs);
+  }
+  
+  #favoriteSlider .slick-slide img {
+    height: 160px;
+    object-fit: cover;
+  }
+  #favoriteSlider .slick-dots { bottom: -20px; }
+  
+  .form-control,
+  .selectize-input {
+    padding: 6px var(--spacing-sm);
+    min-height: 38px;
+  }
+  
+  .indicators-table-real .emoji-icon {
+    font-size: 1.8rem;
+    margin-bottom: 4px;
+  }
+  
+  .indicators-table-real .emoji-label { font-size: 0.55rem; }
+  .indicators-table-real th { padding: 10px 5px; }
+  .indicators-table-real td {
+    font-size: 1.4rem;
+    padding: 12px 5px;
+  }
+  
+  .box-lg .leaflet-container { height: 260px !important; }
+}
+
+/* Pantallas muy grandes (> 1440px) - limitar ancho máximo */
+@media (min-width: 1440px) {
+  body {
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  
+  .indicators-table-real .emoji-icon { font-size: 3.5rem; }
+  .indicators-table-real .emoji-label { font-size: 0.75rem; }
+  .indicators-table-real td { font-size: 2.25rem; }
+}
+
+/* ============================================================================
+   FIN DEL ARCHIVO CSS
+   ============================================================================ */
