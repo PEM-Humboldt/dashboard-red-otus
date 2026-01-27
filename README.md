@@ -618,6 +618,9 @@ Desarrollo de Software CamTrapFlow (CTF) y Dashboards
   - Pipeline modular Python
   - Documentación técnica
 
+### Cómo citar
+(APA): Acevedo, C. C., & Diaz-Pulido, A. (2026). Dashboard_Monitoreo_Camaras_Trampa_Red_OTUS_Colombia. Instituto de Investigación de Recursos Biológicos Alexander von Humboldt. https://github.com/PEM-Humboldt/dashboard-red-otus
+
 ### Instituciones
 
 - **Instituto de Investigación de Recursos Biológicos Alexander von Humboldt**
