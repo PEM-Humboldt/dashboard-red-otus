@@ -618,7 +618,7 @@ Desarrollo de Software CamTrapFlow (CTF) y Dashboards
   - Pipeline modular Python
   - Documentación técnica
 
-### Cómo citar
+### 📋 Cómo citar
 (APA): Acevedo, C. C., & Diaz-Pulido, A. (2026). Dashboard_Monitoreo_Camaras_Trampa_Red_OTUS_Colombia. Instituto de Investigación de Recursos Biológicos Alexander von Humboldt. https://github.com/PEM-Humboldt/dashboard-red-otus
 
 ### Instituciones
@@ -626,12 +626,11 @@ Desarrollo de Software CamTrapFlow (CTF) y Dashboards
 - **Instituto de Investigación de Recursos Biológicos Alexander von Humboldt**
   - Coordinación técnica de la Red OTUS Colombia
   - Validación científica de indicadores
+  - Desarrollo e implementación de la herramienta
 
 - **Red OTUS Colombia**
   - Provisión de datos de fototrampeo
   - Retroalimentación de usuarios finales
-
-- **Corporaciones Autónomas Regionales (CARs)**
   - Trabajo de campo y recolección de datos
   - Validación de análisis territoriales
 
