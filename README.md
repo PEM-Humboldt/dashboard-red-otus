@@ -122,7 +122,7 @@ El **Sistema de Monitoreo de Biodiversidad con Cámaras Trampa** es una platafor
 ### 1️⃣ Clonar el Repositorio
 
 ```bash
-git clone https://github.com/[USUARIO]/Dashboard_Monitoreo_Camaras_Trampa_Red_OTUS_Colombia.git
+git clone https://github.com/PEM-Humboldt/dashboard-red-otus.git
 cd Dashboard_Monitoreo_Camaras_Trampa_Red_OTUS_Colombia
 ```
 
