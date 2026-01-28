@@ -1,14 +1,22 @@
 # ===============================================================================
-# Dashboard IaVH - Red OTUS Colombia
+# Dashboard - Red OTUS Colombia
 # ===============================================================================
-# Proyecto:     Dashboard de Monitoreo de Cámaras Trampa
-# Autor:        Jorge Ahumada (c) Conservation International
-# Adaptación:   Instituto Alexander von Humboldt (IaVH)
-#               Cristian C. Acevedo - Contratista Instituto Humboldt
-# Descripción:  Funciones de análisis y visualización para datos de fototrampeo
-#               provenientes de Wildlife Insights
-# Versión:      2.0 - Arquitectura consolidada multi-evento
-# Última mod.:  2025-12-09
+# Proyecto:     Sistema de Monitoreo de Biodiversidad con Cámaras Trampa
+#               Functions
+# Autores:      Cristian C. Acevedo - Instituto Humboldt (2025)
+#               Angélica Diaz Pulido - Instituto Humboldt (2025)
+#               Jorge Ahumada (c) Conservation International (2020)
+# Descripción:  Dashboard interactivo Shiny para visualización y análisis de
+#               datos de fototrampeo de Wildlife Insights. Soporta análisis
+#               multi-evento, vistas consolidadas y exportación de reportes.
+# Tecnología:   R Shiny + shinydashboard + Plotly + Leaflet
+# Versión:      2.0 - Arquitectura consolidada Parquet
+# Licencia:     CC0 1.0 Universal (Public Domain)
+# Última mod.:  2026-01-26
+
+# Cómo citar:
+# (APA): Acevedo, C. C., & Diaz-Pulido, A. (2026). Dashboard_Monitoreo_Camaras_Trampa_Red_OTUS_Colombia. 
+# Instituto de Investigación de Recursos Biológicos Alexander von Humboldt. https://github.com/PEM-Humboldt/dashboard-red-otus
 # ===============================================================================
 
 # ===============================================================================

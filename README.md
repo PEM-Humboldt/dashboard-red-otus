@@ -29,9 +29,10 @@
 - [Dashboards Disponibles](#-dashboards-disponibles)
 - [Documentación](#-documentación)
 - [Arquitectura Técnica](#-arquitectura-técnica)
-- [Contribuir](#-contribuir)
-- [Licencia](#-licencia)
+- [Contribuciones](#-contribuciones)
 - [Autoría](#-autoría)
+- [Cómo Citar](#-cómo-citar)
+- [Licencia](#-licencia)
 - [Créditos](#-créditos)
 
 ---
@@ -537,55 +538,13 @@ UI (selectores) → observeEvent → reactiveValues → reactive() → renderOut
 
 ---
 
-## 🤝 Contribuir
+## 🤝 Contribuciones
 
-### Reportar Problemas
-
-Si encuentras un bug o tienes una sugerencia:
-
-1. Revisa los [Issues existentes](https://github.com/[USUARIO]/Dashboard_Monitoreo_Camaras_Trampa_Red_OTUS_Colombia/issues)
-2. Si no existe, crea un nuevo Issue con:
-   - **Descripción clara** del problema
-   - **Pasos para reproducir**
-   - **Comportamiento esperado vs. observado**
-   - **Captura de pantalla** (si aplica)
-   - **Versión de R/Python** y sistema operativo
-
-### Proponer Mejoras
-
-Para solicitar nuevas funcionalidades:
-
-1. Abre un Issue con etiqueta `enhancement`
-2. Describe el caso de uso y beneficio esperado
-3. Proporciona ejemplos de cómo se usaría la funcionalidad
-
-### Contribuir con Código
-
-1. **Fork** el repositorio
-2. Crea una **rama** para tu funcionalidad (`git checkout -b feature/nueva-funcionalidad`)
-3. **Commit** tus cambios (`git commit -m 'Agregar nueva funcionalidad'`)
-4. **Push** a la rama (`git push origin feature/nueva-funcionalidad`)
-5. Abre un **Pull Request** con descripción detallada
-
-**Guías de estilo:**
-- **Python:** Seguir PEP 8
-- **R:** Seguir tidyverse style guide
-- **Comentarios:** En español para consistencia del proyecto
-- **Documentación:** Actualizar archivos .md correspondientes
+Este proyecto es parte del desarrollo de software para el Instituto Humboldt - Contrato 25_064.
 
 ---
 
-## 📄 Licencia
-
-Este proyecto está licenciado bajo **CC0 1.0 Universal (Public Domain Dedication)**.
-
-Puedes copiar, modificar, distribuir y ejecutar el trabajo, incluso con fines comerciales, sin pedir permiso.
-
-Ver detalles completos en: https://creativecommons.org/publicdomain/zero/1.0/
-
----
-
-## 👥 Autoría
+# 👥 Autoría
 
 **Desarrollo principal:**  
 Cristian C. Acevedo
@@ -603,14 +562,27 @@ Desarrollo de Software CamTrapFlow (CTF) y Dashboards
 **Año:** 2025
 
 ---
+## 📚 Cómo Citar
+
+Si utilizas esta herramienta en tu investigación, por favor cítala como:
+
+Acevedo, C. C., & Diaz-Pulido, A. (2026). Dashboard_Monitoreo_Camaras_Trampa_Red_OTUS_Colombia. Instituto de Investigación de Recursos Biológicos Alexander von Humboldt. https://github.com/PEM-Humboldt/dashboard-red-otus
+
+---
+
+## 📄 Licencia
+
+Este proyecto está licenciado bajo **CC0 1.0 Universal (Public Domain Dedication)**.
+
+Puedes copiar, modificar, distribuir y ejecutar el trabajo, incluso con fines comerciales, sin pedir permiso.
+
+Ver detalles completos en: https://creativecommons.org/publicdomain/zero/1.0/
+
+---
 
 ## 🏆 Créditos
 
 ### Desarrollo
-
-- **Jorge Ahumada** - Conservation International (2020)
-  - Concepto original y funciones de análisis
-  - Algoritmos de diversidad y ocupación
 
 - **Cristian C. Acevedo** - Instituto Humboldt (2025)
   - Adaptación a arquitectura Parquet
@@ -618,8 +590,9 @@ Desarrollo de Software CamTrapFlow (CTF) y Dashboards
   - Pipeline modular Python
   - Documentación técnica
 
-### 📋 Cómo citar
-(APA): Acevedo, C. C., & Diaz-Pulido, A. (2026). Dashboard_Monitoreo_Camaras_Trampa_Red_OTUS_Colombia. Instituto de Investigación de Recursos Biológicos Alexander von Humboldt. https://github.com/PEM-Humboldt/dashboard-red-otus
+- **Jorge Ahumada** - Conservation International (2020)
+  - Concepto original y funciones de análisis
+  - Algoritmos de diversidad y ocupación
 
 ### Instituciones
 
@@ -633,12 +606,6 @@ Desarrollo de Software CamTrapFlow (CTF) y Dashboards
   - Retroalimentación de usuarios finales
   - Trabajo de campo y recolección de datos
   - Validación de análisis territoriales
-
-### Agradecimientos
-
-- **Wildlife Insights** por la plataforma de gestión de datos
-- Comunidad de **R Shiny** y **tidyverse**
-- Desarrolladores de **Apache Arrow** y **Leaflet**
 
 ---
 

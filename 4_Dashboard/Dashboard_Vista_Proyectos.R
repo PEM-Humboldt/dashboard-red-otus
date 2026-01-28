@@ -1,10 +1,11 @@
 # ===============================================================================
-# Dashboard IaVH - Red OTUS Colombia
+# Dashboard - Red OTUS Colombia
 # ===============================================================================
 # Proyecto:     Sistema de Monitoreo de Biodiversidad con Cámaras Trampa
-# Autores:      Jorge Ahumada (c) Conservation International (2020)
-#               Cristian C. Acevedo - Instituto Humboldt (2025)
+#               Vista Proyectos
+# Autores:      Cristian C. Acevedo - Instituto Humboldt (2025)
 #               Angélica Diaz Pulido - Instituto Humboldt (2025)
+#               Jorge Ahumada (c) Conservation International (2020)
 # Descripción:  Dashboard interactivo Shiny para visualización y análisis de
 #               datos de fototrampeo de Wildlife Insights. Soporta análisis
 #               multi-evento, vistas consolidadas y exportación de reportes.
