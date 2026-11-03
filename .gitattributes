@@ -1,0 +1,12 @@
+* text=auto eol=lf
+
+*.bat text eol=crlf
+*.docx binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ttf binary
+*.parquet binary
+*.shp binary
+*.shx binary
+*.dbf binary

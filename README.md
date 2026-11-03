@@ -1,615 +1,192 @@
-# 📷 Sistema de Monitoreo de Biodiversidad con Cámaras Trampa - Red OTUS Colombia
+# Dashboard Red OTUS 2026
 
-<div align="center">
+Solución para validar, transformar, analizar y visualizar datos de fototrampeo de la Red OTUS. La publicación 2026 integra un pipeline en Python y un dashboard unificado en R Shiny para consultas por proyecto, corporación y evento de muestreo.
 
-![Estado](https://img.shields.io/badge/Estado-Producción-brightgreen)
-![Versión](https://img.shields.io/badge/Versión-2.0-blue)
-![Licencia](https://img.shields.io/badge/Licencia-CC0%201.0-lightgrey)
-![R](https://img.shields.io/badge/R-4.0+-276DC3?logo=r)
-![Python](https://img.shields.io/badge/Python-3.8+-3776AB?logo=python)
+## Alcance
 
-**Plataforma completa de procesamiento, análisis y visualización de datos de fototrampeo**  
-*Wildlife Insights → Pipeline ETL → Dashboards Interactivos*
+La solución cubre dos procesos complementarios:
 
-[Instalación](#-instalación) • [Uso](#-uso-rápido) • [Documentación](#-documentación) • [Arquitectura](#-arquitectura)
+1. **Preparación de datos:** recibe archivos CSV exportados desde Wildlife Insights, controla su calidad y genera productos Parquet optimizados.
+2. **Visualización:** presenta indicadores operativos y de biodiversidad mediante una única aplicación con vistas por proyecto y corporación.
 
-</div>
+Los cálculos de mayor costo se realizan previamente en Python. R consume productos aprobados y se concentra en filtros, visualizaciones, tablas y descargas.
 
----
+## Estructura
 
-## 📋 Tabla de Contenidos
-
-- [Descripción](#-descripción)
-- [Características](#-características-principales)
-- [Requisitos del Sistema](#-requisitos-del-sistema)
-- [Instalación](#-instalación)
-- [Uso Rápido](#-uso-rápido)
-- [Estructura del Proyecto](#-estructura-del-proyecto)
-- [Flujo de Trabajo](#-flujo-de-trabajo)
-- [Dashboards Disponibles](#-dashboards-disponibles)
-- [Documentación](#-documentación)
-- [Arquitectura Técnica](#-arquitectura-técnica)
-- [Contribuciones](#-contribuciones)
-- [Autoría](#-autoría)
-- [Cómo Citar](#-cómo-citar)
-- [Licencia](#-licencia)
-- [Créditos](#-créditos)
-
----
-
-## 🎯 Descripción
-
-El **Sistema de Monitoreo de Biodiversidad con Cámaras Trampa** es una plataforma integral desarrollada para la **Red OTUS Colombia** (Red de Observación de la Biodiversidad con Cámaras Trampa). El sistema permite:
-
-- **Procesar** datos masivos de fototrampeo desde Wildlife Insights
-- **Transformar** archivos CSV a formato Parquet optimizado
-- **Analizar** métricas operacionales y de biodiversidad
-- **Visualizar** resultados en dashboards interactivos
-- **Exportar** reportes en formatos PNG y CSV
-
-### 🌟 ¿Qué Incluye?
-
-| Componente | Descripción | Tecnología |
-|------------|-------------|------------|
-| **Pipeline ETL** | Procesamiento de datos crudos de Wildlife Insights | Python 3.8+ |
-| **Dashboard por Proyectos** | Visualización de datos por proyecto individual | R Shiny |
-| **Dashboard por Corporaciones** | Análisis consolidado por CARs (Corporaciones Autónomas Regionales) | R Shiny |
-| **Análisis Espacial** | Asignación automática de jurisdicciones CARs por coordenadas | GeoPandas |
-| **Exportación** | Generación de reportes visuales y tablas de datos | html2canvas, DT |
-
----
-
-## ✨ Características Principales
-
-### 🔄 Pipeline de Procesamiento (Python)
-
-- ✅ **Carga masiva** de archivos CSV desde Wildlife Insights
-- ✅ **Validación automática** de formatos y calidad de datos
-- ✅ **Filtrado inteligente** por eventos de muestreo (formato YYYY_N)
-- ✅ **Enriquecimiento de datos** con taxonomía y metadata administrativa
-- ✅ **Análisis geoespacial** con asignación de CARs por polígonos
-- ✅ **Generación de Parquet** optimizado para lectura rápida
-- ✅ **Reportes de calidad** con estadísticas detalladas
-
-### 📊 Dashboards Interactivos (R Shiny)
-
-**Análisis Operacional:**
-- 🗂️ Número total de imágenes capturadas
-- 📸 Cantidad de cámaras trampa desplegadas
-- 📅 Esfuerzo de muestreo (trampas/noche)
-- 🏞️ Riqueza de especies observadas (total, mamíferos, aves)
-
-**Indicadores de Biodiversidad:**
-- 🌿 **Números de Hill** (q=0, q=1, q=2) para diversidad efectiva
-- 📈 **Curva de acumulación** de especies a través del tiempo
-- 📊 **Ocupación naive** (proporción de sitios con detección)
-- 🕒 **Patrón de actividad circadiano** (distribución 24 horas)
-
-**Visualizaciones:**
-- 🗺️ **Mapa interactivo Leaflet** con ubicación de cámaras y polígonos de CARs
-- 📋 **Tabla de especies** con búsqueda, ordenamiento y exportación CSV
-- 📸 **Galería multimedia** con carrusel de imágenes destacadas
-- 📊 **Gráficos interactivos Plotly** con zoom y tooltips
-
-**Funcionalidades Avanzadas:**
-- 🎚️ **Filtros jerárquicos** (Corporación → Evento → Intervalo de independencia)
-- 🔄 **Análisis multi-evento** con vistas consolidadas
-- 🖼️ **Exportación de dashboard completo** a imagen PNG
-- 📥 **Descarga de tablas** en formato CSV con timestamp
-
----
-
-## 💻 Requisitos del Sistema
-
-### Software Base
-
-| Componente | Versión Mínima | Recomendado |
-|------------|----------------|-------------|
-| **Python** | 3.8 | 3.10+ |
-| **R** | 4.0.0 | 4.3+ |
-| **RStudio** | Cualquiera | 2023.06+ |
-| **RAM** | 4 GB | 8 GB+ |
-| **Espacio en Disco** | 2 GB | 5 GB+ |
-
-### Sistema Operativo
-
-- ✅ Windows 10/11
-
----
-
-## 🚀 Instalación
-
-### 1️⃣ Clonar el Repositorio
-
-```bash
-git clone https://github.com/PEM-Humboldt/dashboard-red-otus.git
-cd Dashboard_Monitoreo_Camaras_Trampa_Red_OTUS_Colombia
+```text
+dashboard-red-otus/
+├── docs/                  Documentación técnica y operativa
+├── processing/            Pipeline, GUI, validaciones e insumos
+│   ├── input/raw/         CSV descargados de Wildlife Insights
+│   ├── input/spatial/     Límites geográficos para asignación espacial
+│   ├── red_otus_pipeline/ Código fuente del procesamiento
+│   ├── tests/             Pruebas automatizadas de reglas y publicación
+│   ├── launch_gui.bat     Inicio recomendado para usuarios de Windows
+│   └── validate_release.py Validación independiente de la publicación
+├── processing_reports/    Informes locales de calidad y operación
+└── dashboard/             Aplicación R Shiny
+    ├── app.R              Interfaz y lógica reactiva
+    ├── dashboard_functions.R Lectura, validación y visualizaciones
+    ├── data/              Publicación vigente del pipeline
+    ├── spatial/           Límites usados en el mapa
+    └── www/               Estilos, fuentes, imágenes y JavaScript
 ```
 
-### 2️⃣ Configurar Entorno Python
+## Inicio rápido
 
-**Opción A: Usando venv (recomendado)**
+1. Instale Python 3.11, 3.12 o 3.13. La versión validada para este release es Python 3.13.11. Luego restaure las dependencias congeladas:
 
-```bash
-# Crear entorno virtual
-python -m venv venv
+   ```powershell
+   python -m venv .venv
+   .\.venv\Scripts\Activate.ps1
+   python -m pip install -r processing/requirements.lock.txt
+   python -m pip install -e processing --no-deps
+   ```
 
-# Activar entorno (Windows)
-venv\Scripts\activate
+2. Elimine el contenido operativo anterior de `processing/input/raw/`, sin
+   borrar el archivo `.gitkeep` cuando esté visible.
+3. Solicite en Wildlife Insights la descarga completa de la iniciativa,
+   descargue el archivo ZIP, descomprímalo y copie únicamente los CSV
+   resultantes en `processing/input/raw/`. No procese directamente el ZIP.
+4. Confirme que los componentes de `CAR_MPIO` sean idénticos en
+   `processing/input/spatial/` y `dashboard/spatial/`.
+5. Agregue las fotografías originales en `processing/input/favorites_originals/`
+   y use la GUI para publicar copias optimizadas en
+   `dashboard/www/images/favorites/`. La carpeta `General` alimenta las vistas
+   globales y cada carpeta nombrada con un `project_id` alimenta ese proyecto y
+   su corporación.
+6. Ejecute `processing/launch_gui.bat`.
+7. Valide la entrada, configure el alcance y publique los datos.
+8. Abra `dashboard/app.R` en RStudio y seleccione **Run App**.
 
-# Activar entorno (macOS/Linux)
-source venv/bin/activate
+Para preparar R por primera vez:
 
-# Instalar dependencias
-pip install -r 3_processing_pipeline/requirements.txt
+```powershell
+Rscript -e "renv::restore(project='dashboard', prompt=FALSE)"
 ```
 
-**Opción B: Usando conda**
+La publicación es transaccional: una ejecución incompleta no reemplaza los datos aprobados previamente.
 
-```bash
-conda create -n otus python=3.10
-conda activate otus
-pip install -r 3_processing_pipeline/requirements.txt
-```
+## Flujo de actualización segura
 
-**Dependencias Python:**
-```
-numpy
-pandas
-pyarrow
-pillow
-geopandas
-shapely
-```
+El procesador construye los once archivos Parquet y los informes en carpetas
+temporales. Antes de activar una actualización, comprueba la estructura esperada
+de los datos, las relaciones entre tablas, los intervalos solicitados y las
+huellas de los archivos. La carpeta `dashboard/data/` solo se reemplaza cuando
+todas las validaciones terminan correctamente. Si el usuario detiene la
+ejecución o se presenta un error, la publicación anterior continúa disponible.
 
-### 3️⃣ Configurar Entorno R
+Cada publicación aprobada registra en `manifest.json` sus conteos, parámetros,
+tiempos, versiones y huellas SHA-256. Estas cifras dependen de los insumos y no
+se fijan en la documentación pública.
 
-**Instalar librerías requeridas:**
+## Despliegue en Posit Connect
+
+Para desplegar la aplicación con las dependencias congeladas, abra en RStudio el
+archivo `dashboard/dashboard_red_otus_2026.Rproj`. Esta acción inicia R dentro de
+la carpeta correcta y permite que `dashboard/.Rprofile` active automáticamente
+el entorno `renv` antes de generar el paquete de publicación.
+
+En una instalación nueva, ejecute una sola vez:
 
 ```r
-# Ejecutar en consola R o RStudio
-install.packages(c(
-  # Framework Shiny
-  "shiny", "shinydashboard", "dashboardthemes", "shinyjs", "shinymanager",
-  
-  # Visualización
-  "plotly", "leaflet", "sf", "DT",
-  
-  # Multimedia
-  "slickR", "magick", "cowplot",
-  
-  # Procesamiento de datos
-  "dplyr", "tidyr", "arrow"
-))
+renv::restore(prompt = FALSE)
+stopifnot(renv::status()$synchronized)
 ```
 
-**Nota crítica sobre DT:**  
-Si el paquete `DT` no se instala correctamente, consultar `0_Documentation/INSTALL.md` para solución de problemas.
-
-### 4️⃣ Verificar Instalación
-
-**Python:**
-```bash
-python --version
-pip list | grep -E "pandas|pyarrow|geopandas"
-```
-
-**R:**
-```r
-# En consola R
-R.version.string
-packageVersion("shiny")
-packageVersion("DT")
-```
-
----
-
-## ⚡ Uso Rápido
-
-### Procesamiento de Datos (Pipeline Python)
-
-```bash
-# 1. Colocar archivos CSV de Wildlife Insights en 1_Data_RAW_WI/
-#    Archivos requeridos:
-#      - projects.csv
-#      - deployments.csv
-#      - cameras.csv
-#      - images_*.csv (uno o múltiples archivos)
-
-# 2. Activar entorno virtual
-venv\Scripts\activate  # Windows
-source venv/bin/activate  # macOS/Linux
-
-# 3. Ejecutar pipeline
-cd 3_processing_pipeline
-python process_RAW_data_WI.py
-
-# 4. Verificar archivos Parquet generados
-ls ../4_Dashboard/dashboard_input_data/*.parquet
-```
-
-**Salida esperada:**
-```
-✓ observations.parquet   (~500 KB - 5 MB según volumen de datos)
-✓ deployments.parquet    (~50 KB - 200 KB)
-✓ projects.parquet       (~10 KB - 50 KB)
-```
-
-### Visualización en Dashboard (R Shiny)
-
-**Opción 1: Desde RStudio (recomendado)**
-
-1. Abrir `4_Dashboard/Dashboard_Vista_Corporaciones.R` o `4_Dashboard/Dashboard_Vista_Proyectos.R`
-2. Hacer clic en **"Run App"** (esquina superior derecha)
-3. Seleccionar **"Run in Window"** para mejor experiencia
-
-**Opción 2: Desde consola R**
+Después reinicie la sesión de R y despliegue desde la carpeta `dashboard`:
 
 ```r
-# Dashboard por Corporaciones
-setwd("4_Dashboard")
-shiny::runApp("Dashboard_Vista_Corporaciones.R")
-
-# Dashboard por Proyectos
-shiny::runApp("Dashboard_Vista_Proyectos.R")
+rsconnect::deployApp(
+  appDir = ".",
+  appName = "dashboard_red_otus_2026",
+  account = "<cuenta_posit_connect>",
+  server = "connect.posit.cloud",
+  dependencyResolution = "renv"
+)
 ```
 
-**Opción 3: Desde terminal**
+Si RStudio se abrió desde la raíz del repositorio y no desde el archivo
+`.Rproj`, cargue explícitamente el entorno antes de desplegar:
 
-```bash
-cd 4_Dashboard
-Rscript -e "shiny::runApp('Dashboard_Vista_Corporaciones.R')"
-```
-
----
-
-## 📁 Estructura del Proyecto
-
-```
-Dashboard_Monitoreo_Camaras_Trampa_Red_OTUS_Colombia/
-│
-├── 0_Documentation/                    # 📚 Documentación técnica
-│   ├── README.md                       # Este archivo
-│   ├── INSTALL.md                      # Guía de instalación detallada
-│   ├── ARCHITECTURE.md                 # Arquitectura del sistema
-│   ├── PIPELINE.md                     # Documentación del pipeline Python
-│   ├── Dashboard_Vista_Corporaciones.md   # Docs del dashboard por CARs
-│   ├── Dashboard_Vista_Proyectos.md       # Docs del dashboard por proyectos
-│   ├── DOC_functions_data.md           # Funciones de análisis R
-│   └── DOC_style_css.md                # Estilos CSS del dashboard
-│
-├── 1_Data_RAW_WI/                      # 📥 Datos crudos de Wildlife Insights
-│   ├── projects.csv                    # Catálogo de proyectos
-│   ├── deployments.csv                 # Despliegues de cámaras
-│   ├── cameras.csv                     # Metadata de cámaras
-│   ├── sequences.csv                   # Secuencias de imágenes
-│   └── images_*.csv                    # Imágenes por proyecto (múltiples archivos)
-│
-├── 2_Data_Shapefiles_CARs/             # 🗺️ Shapefiles de jurisdicciones
-│   ├── CAR_MPIO.shp                    # Polígonos de CARs
-│   ├── CAR_MPIO.shx
-│   ├── CAR_MPIO.dbf
-│   └── CAR_MPIO.prj
-│
-├── 3_processing_pipeline/              # 🔧 Pipeline ETL en Python
-│   ├── process_RAW_data_WI.py          # Script principal de procesamiento
-│   ├── requirements.txt                # Dependencias Python
-│   └── src/                            # Módulos del pipeline
-│       ├── __init__.py
-│       ├── utils.py                    # Funciones de carga y filtrado
-│       ├── transformations.py          # Transformaciones de datos
-│       ├── generate_parquets.py        # Generación de archivos Parquet
-│       └── validation.py               # Validación de calidad
-│
-├── 4_Dashboard/                        # 📊 Dashboards R Shiny
-│   ├── Dashboard_Vista_Corporaciones.R # Dashboard por CARs (principal)
-│   ├── Dashboard_Vista_Proyectos.R     # Dashboard por proyectos
-│   ├── functions_data.R                # Funciones de análisis y visualización
-│   │
-│   ├── dashboard_input_data/           # 💾 Datos procesados (Parquet)
-│   │   ├── observations.parquet        # Observaciones de fauna
-│   │   ├── deployments.parquet         # Metadata de despliegues
-│   │   └── projects.parquet            # Catálogo de proyectos
-│   │
-│   └── www/                            # 🎨 Recursos web
-│       ├── css/
-│       │   └── style.css               # Estilos personalizados
-│       ├── images/
-│       │   ├── favorites/              # Galería de imágenes destacadas
-│       │   │   ├── General/            # Imágenes consolidadas
-│       │   │   ├── [NOMBRE_CAR]/       # Imágenes por corporación
-│       │   │   └── ...
-│       │   └── Logos/
-│       │       └── Logos_instituciones.png
-│       └── fonts/
-│
-└── .gitignore                          # Archivos excluidos de Git
-```
-
----
-
-## 🔄 Flujo de Trabajo
-
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                     WILDLIFE INSIGHTS                                │
-│  (Plataforma global de gestión de datos de cámaras trampa)          │
-└─────────────────────────────────────────────────────────────────────┘
-                                ↓
-                    📥 Descarga de archivos CSV
-                                ↓
-┌─────────────────────────────────────────────────────────────────────┐
-│                  1_Data_RAW_WI/ (Datos crudos)                       │
-│  • projects.csv                                                      │
-│  • deployments.csv                                                   │
-│  • cameras.csv                                                       │
-│  • images_*.csv (múltiples archivos por proyecto)                   │
-└─────────────────────────────────────────────────────────────────────┘
-                                ↓
-┌─────────────────────────────────────────────────────────────────────┐
-│         🔧 PIPELINE ETL (3_processing_pipeline/)                     │
-│                                                                      │
-│  1. Carga de datos crudos (concatenación de images_*.csv)          │
-│  2. Validación y filtrado (subproject_name, registros CV)          │
-│  3. Enriquecimiento (taxonomía, metadata administrativa)           │
-│  4. Análisis geográfico (asignación de CARs por coordenadas)       │
-│  5. Generación de Parquet (observations, deployments, projects)    │
-│  6. Validación de calidad (reportes de estadísticas)               │
-└─────────────────────────────────────────────────────────────────────┘
-                                ↓
-┌─────────────────────────────────────────────────────────────────────┐
-│       💾 DATOS PROCESADOS (4_Dashboard/dashboard_input_data/)       │
-│  • observations.parquet  (20 columnas, datos granulares)           │
-│  • deployments.parquet   (15 columnas, metadata de despliegues)    │
-│  • projects.parquet      (10 columnas, catálogo de proyectos)      │
-└─────────────────────────────────────────────────────────────────────┘
-                                ↓
-                    ┌───────────┴───────────┐
-                    ↓                       ↓
-┌────────────────────────────┐  ┌──────────────────────────────┐
-│  📊 DASHBOARD CORPORACIONES │  │  📊 DASHBOARD PROYECTOS       │
-│  (Vista consolidada CARs)   │  │  (Vista individual proyectos)│
-│                             │  │                               │
-│  • Filtro por corporación   │  │  • Filtro por proyecto       │
-│  • Filtro por evento        │  │  • Filtro por evento         │
-│  • Polígonos jurisdicciones │  │  • Análisis detallado        │
-│  • Análisis consolidados    │  │  • Exportación de reportes   │
-└────────────────────────────┘  └──────────────────────────────┘
-                    ↓                       ↓
-┌─────────────────────────────────────────────────────────────────────┐
-│                   📤 EXPORTACIONES                                   │
-│  • Tablas CSV (ranking de especies con timestamp)                  │
-│  • Imágenes PNG (captura completa del dashboard)                   │
-│  • Reportes de calidad (validación de pipeline Python)             │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 📊 Dashboards Disponibles
-
-### 1. Dashboard por Corporaciones (`Dashboard_Vista_Corporaciones.R`)
-
-**Propósito:** Análisis consolidado por Corporaciones Autónomas Regionales (CARs)
-
-**Características:**
-- 🏛️ **Filtro primario por corporación** (AMVA, CAM, CARDIQUE, CORPOCALDAS, etc.)
-- 📅 **Filtro secundario por evento de muestreo** (formato YYYY_N: 2024_2, 2025_1)
-- 🗺️ **Visualización de polígonos jurisdiccionales** en mapa interactivo
-- 📊 **Tabla de indicadores por período** con fila consolidada
-- 📈 **Análisis multi-evento** para comparación temporal
-
-**Uso típico:**
-- Reportes administrativos para CARs
-- Análisis de tendencias temporales por jurisdicción
-- Comparación de esfuerzo de muestreo entre eventos
-
-**Ejecutar:**
 ```r
-shiny::runApp("4_Dashboard/Dashboard_Vista_Corporaciones.R")
+deploy_dashboard <- rsconnect::deployApp
+renv::load("dashboard")
+stopifnot(renv::status(project = "dashboard")$synchronized)
+
+deploy_dashboard(
+  appDir = "dashboard",
+  appName = "dashboard_red_otus_2026",
+  account = "<cuenta_posit_connect>",
+  server = "connect.posit.cloud",
+  dependencyResolution = "renv"
+)
 ```
 
-### 2. Dashboard por Proyectos (`Dashboard_Vista_Proyectos.R`)
+No se recomienda agregar `renv.lock` a `.rscignore` ni utilizar
+`dependencyResolution = "library"` para una publicación estable, ya que ambas
+alternativas omiten el entorno congelado y pueden producir diferencias entre el
+equipo local y Posit Connect.
 
-**Propósito:** Análisis detallado de proyectos individuales
+En el diálogo de publicación de RStudio deben incluirse `.Rprofile`, `app.R`,
+`dashboard_functions.R`, `renv.lock`, `data/`, `spatial/` y `www/`. No se deben
+incorporar `processing/`, `processing_reports/`, `.Rproj.user/`, `.Rhistory` ni
+la biblioteca local `renv/library/`.
 
-**Características:**
-- 📋 **Filtro por proyecto específico** (según project_id)
-- 🔍 **Análisis granular** de sitios de muestreo
-- 📊 **Métricas operacionales** por deployment
-- 🎯 **Enfoque en protocolos de campo** individuales
+## Despliegue institucional
 
-**Uso típico:**
-- Análisis de campo por investigadores
-- Validación de calidad de datos por proyecto
-- Generación de reportes técnicos específicos
+La aplicación también puede ejecutarse mediante Shiny Server en Linux. La
+configuración concreta del servidor -contenedores, proxy inverso, HTTPS, DNS,
+credenciales, rutas y scripts de actualización- depende de la infraestructura
+autorizada por el Instituto y se administra fuera de este repositorio. El código
+público no incluye secretos ni datos operativos.
 
-**Ejecutar:**
-```r
-shiny::runApp("4_Dashboard/Dashboard_Vista_Proyectos.R")
+Antes de declarar estable un despliegue institucional se debe comprobar, en el
+servidor de destino, el arranque de la aplicación, WebSocket, filtros, mapas,
+galería, descargas, actualización de datos y reversión. Los cambios derivados de
+esa validación deben incorporarse mediante una nueva revisión del código y sus
+pruebas.
+
+## Validación
+
+Desde la raíz del proyecto:
+
+```powershell
+python -m unittest discover -s processing/tests -v
+python processing/validate_release.py --output dashboard/data
 ```
 
-### Comparación de Dashboards
+## Documentación
 
-| Característica | Vista Corporaciones | Vista Proyectos |
-|----------------|---------------------|-----------------|
-| **Nivel de agregación** | CAR → Evento | Proyecto → Evento |
-| **Polígonos en mapa** | ✅ Jurisdicción CAR | ❌ No aplica |
-| **Tabla consolidada** | ✅ Por períodos | ⚠️ Limitada |
-| **Uso principal** | Administrativo | Técnico/Investigación |
-| **Exportación PNG** | ✅ Dashboard completo | ✅ Dashboard completo |
-| **Exportación CSV** | ✅ Ranking de especies | ✅ Ranking de especies |
+- [Arquitectura de la solución](docs/ARCHITECTURE.md)
+- [Flujo de procesamiento](docs/PROCESSING_WORKFLOW.md)
+- [Diccionario de datos](docs/DATA_DICTIONARY.md)
+- [Manual de operación](docs/OPERATION_MANUAL.md)
 
----
+## Versionamiento
 
-## 📚 Documentación
+- Aplicación: **v2026.1.0**
+- Estructura de datos: **2.2.0**
+- Entorno Python validado: **3.13.11**
+- Entorno R bloqueado: **4.5.2**
 
-### Documentación Técnica Completa
+Durante esta iteración, los ajustes finos y correcciones menores permanecen identificados como `v2026.1.0`. Un cambio de versión se realizará únicamente cuando se defina una nueva iteración funcional.
 
-| Documento | Descripción | Ubicación |
-|-----------|-------------|-----------|
-| **INSTALL.md** | Guía detallada de instalación y configuración de entorno | `0_Documentation/` |
-| **ARCHITECTURE.md** | Arquitectura del sistema, diagramas de flujo, decisiones de diseño | `0_Documentation/` |
-| **PIPELINE.md** | Documentación técnica del pipeline Python (módulos, funciones, validación) | `0_Documentation/` |
-| **Dashboard_Vista_Corporaciones.md** | Funcionalidad, uso y código del dashboard por CARs | `0_Documentation/` |
-| **Dashboard_Vista_Proyectos.md** | Funcionalidad, uso y código del dashboard por proyectos | `0_Documentation/` |
-| **DOC_functions_data.md** | Documentación de funciones de análisis R (occupancy, activity, Hill numbers) | `0_Documentation/` |
-| **DOC_style_css.md** | Guía de estilos CSS, paleta de colores, componentes visuales | `0_Documentation/` |
+La rama `legacy/2025` conserva la versión anterior únicamente como referencia
+histórica. Esa implementación está deprecada y no debe usarse para nuevas
+actualizaciones, despliegues ni desarrollos.
 
-### Recursos Externos
+## Responsables
 
-- **Wildlife Insights:** https://www.wildlifeinsights.org/
-- **Camtrap DP Standard:** https://camtrap-dp.tdwg.org/
-- **R Shiny Documentation:** https://shiny.rstudio.com/
-- **Apache Arrow (Parquet):** https://arrow.apache.org/docs/python/parquet.html
-- **Leaflet for R:** https://rstudio.github.io/leaflet/
+- **Desarrollo:** Cristian C. Acevedo, Ingeniero de Soluciones.
+- **Supervisión:** Angélica Diaz Pulido, Investigador Adjunto, Centro Estudios Socioecológicos y Cambio Global, Dirección de Conocimiento, Instituto de Investigación de Recursos Biológicos Alexander von Humboldt.
 
----
+## Licencia
 
-## 🏗️ Arquitectura Técnica
+El código desarrollado para esta solución se distribuye bajo la [Licencia MIT](LICENSE). Los datos, imágenes, marcas, fuentes y recursos de terceros mantienen sus condiciones de uso y atribución originales.
 
-### Tecnologías Utilizadas
+## Información privada
 
-#### Backend (Python)
+El repositorio público contiene código y documentación. Los CSV, datos procesados, límites geográficos y fotografías están excluidos de Git y deben administrarse únicamente en espacios institucionales autorizados.
 
-- **pandas** 🐼 - Manipulación y transformación de datos
-- **pyarrow** 🏹 - Lectura/escritura de archivos Parquet
-- **geopandas** 🗺️ - Análisis geoespacial (asignación de CARs)
-- **shapely** 📐 - Operaciones geométricas (point-in-polygon)
-- **numpy** 🔢 - Cálculos numéricos eficientes
-- **pillow** 🖼️ - Procesamiento de imágenes (futuro)
-
-#### Frontend (R Shiny)
-
-- **shiny** ⚡ - Framework web reactivo
-- **shinydashboard** 📊 - Componentes de dashboard
-- **plotly** 📈 - Gráficos interactivos
-- **leaflet** 🗺️ - Mapas interactivos
-- **DT** 📋 - Tablas interactivas (DataTables)
-- **sf** 🌍 - Datos espaciales (shapefiles)
-- **slickR** 🎠 - Carrusel de imágenes
-- **html2canvas** 📸 - Captura de pantalla (JavaScript)
-
-#### Formato de Datos
-
-- **Apache Parquet** 📦
-  - Compresión columnar eficiente (Snappy)
-  - Lectura 10-100x más rápida que CSV
-  - Preservación de tipos de datos
-  - Tamaño ~70% menor que CSV equivalente
-
-### Arquitectura Modular del Pipeline
-
-```
-3_processing_pipeline/
-├── process_RAW_data_WI.py          # Orquestador principal
-└── src/
-    ├── utils.py                    # Carga, filtrado, limpieza
-    ├── transformations.py          # Enriquecimiento de datos
-    ├── generate_parquets.py        # Generación de archivos Parquet
-    └── validation.py               # Validación de calidad
-```
-
-**Principios de diseño:**
-- ✅ **Separación de responsabilidades** (cada módulo tiene una función clara)
-- ✅ **Reutilización de código** (funciones genéricas en utils)
-- ✅ **Validación exhaustiva** (checks en cada etapa del pipeline)
-- ✅ **Trazabilidad** (logs detallados de cada operación)
-
-### Arquitectura Reactiva de Dashboards
-
-```
-UI (selectores) → observeEvent → reactiveValues → reactive() → renderOutput()
-                      ↓
-                Validación de filtros
-                      ↓
-                Aplicación de filtros
-                      ↓
-              Cálculo de estadísticas
-                      ↓
-              Renderizado de visualizaciones
-```
-
-**Ventajas:**
-- ⚡ **Actualizaciones automáticas** cuando cambian los filtros
-- 🎯 **Cálculos eficientes** (solo se recalcula lo necesario)
-- 🔒 **Estado consistente** (reactiveValues sincronizados)
-- 🖱️ **Experiencia fluida** para el usuario
-
----
-
-## 🤝 Contribuciones
-
-Este proyecto es parte del desarrollo de software para el Instituto Humboldt - Contrato 25_064.
-
----
-
-# 👥 Autoría
-
-**Desarrollo principal:**  
-Cristian C. Acevedo
-
-**Coordinación científica:**  
-Angélica Diaz-Pulido
-
-**Institución:**  
-Instituto de Investigación de Recursos Biológicos Alexander von Humboldt – Red OTUS
-
-**Proyecto:**  
-Contrato 25-064 
-Desarrollo de Software CamTrapFlow (CTF) y Dashboards
-
-**Año:** 2025
-
----
-## 📚 Cómo Citar
-
-Si utilizas esta herramienta en tu investigación, por favor cítala como:
-
-Acevedo, C. C., & Diaz-Pulido, A. (2026). Dashboard_Monitoreo_Camaras_Trampa_Red_OTUS_Colombia. Instituto de Investigación de Recursos Biológicos Alexander von Humboldt. https://github.com/PEM-Humboldt/dashboard-red-otus
-
----
-
-## 📄 Licencia
-
-Este proyecto está licenciado bajo **CC0 1.0 Universal (Public Domain Dedication)**.
-
-Puedes copiar, modificar, distribuir y ejecutar el trabajo, incluso con fines comerciales, sin pedir permiso.
-
-Ver detalles completos en: https://creativecommons.org/publicdomain/zero/1.0/
-
----
-
-## 🏆 Créditos
-
-### Desarrollo
-
-- **Cristian C. Acevedo** - Instituto Humboldt (2025)
-  - Adaptación a arquitectura Parquet
-  - Desarrollo de dashboards por corporaciones
-  - Pipeline modular Python
-  - Documentación técnica
-
-- **Jorge Ahumada** - Conservation International (2020)
-  - Concepto original y funciones de análisis
-  - Algoritmos de diversidad y ocupación
-
-### Instituciones
-
-- **Instituto de Investigación de Recursos Biológicos Alexander von Humboldt**
-  - Coordinación técnica de la Red OTUS Colombia
-  - Validación científica de indicadores
-  - Desarrollo e implementación de la herramienta
-
-- **Red OTUS Colombia**
-  - Provisión de datos de fototrampeo
-  - Retroalimentación de usuarios finales
-  - Trabajo de campo y recolección de datos
-  - Validación de análisis territoriales
-
----
-
-<div align="center">
-  <em>Instituto de Investigación de Recursos Biológicos Alexander von Humboldt</em><br>
-  <strong>Comprometidos con la conservación y el conocimiento de la biodiversidad colombiana</strong>
-</div>
+La exclusión mediante `.gitignore` evita nuevas incorporaciones, pero no elimina archivos que hayan quedado registrados en commits anteriores. Antes de publicar una actualización del repositorio, se debe revisar su historial y, si la clasificación institucional lo exige, retirar de forma controlada cualquier dato o límite espacial histórico.
