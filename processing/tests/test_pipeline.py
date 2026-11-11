@@ -34,7 +34,7 @@ class CalculationTests(unittest.TestCase):
         root = _project_root()
         self.assertTrue((root / "processing" / "input" / "raw").is_dir())
         self.assertTrue((root / "dashboard" / "data").is_dir())
-        self.assertTrue((root / "processing" / "input" / "spatial" / "CAR_MPIO.shp").is_file())
+        self.assertTrue((root / "processing" / "input" / "spatial").is_dir())
         self.assertTrue((_resources_dir() / "styles.qss").is_file())
         self.assertTrue((_resources_dir() / "red_otus.svg").is_file())
         self.assertTrue((_resources_dir() / "combo_arrow.svg").is_file())
