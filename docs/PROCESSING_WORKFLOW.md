@@ -94,6 +94,30 @@ de cada original y evita recomprimir archivos sin cambios. La operación produce
 La cancelación cooperativa o cualquier imagen defectuosa impide activar la
 nueva carpeta y conserva íntegra la galería publicada anteriormente.
 
+### 3.5 Preparación del paquete institucional
+
+Después de revisar el dashboard en local, el usuario valida el contenido y
+confirma su aprobación. La GUI genera un ZIP autocontenido con los datos
+publicados, la galería, los polígonos cuando se solicitan, un manifiesto de
+release y las huellas SHA-256. También crea una huella externa para comprobar
+que el ZIP no cambió durante la transferencia. Los paquetes se guardan en
+`internal_deployment/packages/`, carpeta excluida del control de versiones.
+
+### 3.6 Publicación controlada en el servidor
+
+Con una ventana autorizada, el usuario ingresa servidor, puerto, usuario y
+contraseña temporal. La primera conexión registra localmente la identidad SSH;
+las conexiones posteriores se bloquean si esta cambia. **Comprobar conexión**
+consulta la release activa, su fecha, el estado de Docker y el espacio
+disponible. **Transferir y activar actualización** envía el paquete, ejecuta el
+procedimiento institucional y confirma la release activa y la respuesta HTTP.
+La contraseña permanece únicamente en memoria y se elimina al cerrar la GUI.
+
+La reversión restaura la release anterior y debe utilizarse solo si la versión
+activa presenta una falla. Los nombres de host, credenciales y scripts de
+administración del servidor se distribuyen por canales internos y no forman
+parte del repositorio público.
+
 ## 4. Etapas internas
 
 ### 4.1 Lectura
@@ -188,6 +212,14 @@ directorios; si uno falla, el pipeline restaura el respaldo anterior. La
 cancelación solicitada desde la GUI también ocurre antes de exponer productos
 incompletos.
 
+### 4.12 Integridad y activación remota
+
+El paquete institucional conserva las huellas de cada archivo y una huella del
+ZIP completo. El servidor valida ambas antes de crear una release
+autocontenida. La activación cambia la referencia vigente, reinicia el
+contenedor y verifica la respuesta HTTP. La release anterior permanece
+disponible para una reversión controlada.
+
 ## 5. Archivos de control
 
 El manifiesto requerido por el dashboard permanece en `dashboard/data/`. Los
@@ -212,10 +244,16 @@ el paquete enviado al servicio de visualización.
 
 ## 6. Ejecución
 
+La actualización ordinaria se inicia manualmente por el responsable cuando el
+Instituto dispone de una nueva descarga de Wildlife Insights. Su frecuencia
+esperada es de dos a cinco veces al año. El sistema automatiza las validaciones,
+los cálculos y la publicación atómica dentro de cada ejecución, pero no inicia
+procesamientos ni despliegues mediante un calendario.
+
 ### Interfaz gráfica
 
 ```text
-processing/launch_gui.bat
+python processing/run_gui.py
 ```
 
 ### Línea de comandos
@@ -277,8 +315,13 @@ insumos. Para cada ejecución conserve, en un espacio institucional autorizado:
 - Los intervalos, periodo, duración, CPU y memoria registrados.
 - El resultado de `validate_release.py`.
 - El reporte de calidad y, cuando corresponda, el reporte de galería.
+- El identificador del paquete, su SHA-256 y el registro local de publicación.
+- La release activa, su fecha de activación y el resultado HTTP cuando se
+  actualice el servidor institucional.
 
 Las pruebas automatizadas cubren la regla acumulativa de independencia, el
 intervalo sin filtro, los números de Hill, la cancelación cooperativa, los
 reintentos ante bloqueos de Windows, el reporte de calidad y la publicación
-atómica.
+atómica. También comprueban el empaquetado, la integridad de la transferencia y
+el contrato de despliegue. GitHub ejecuta la suite automáticamente en cada
+cambio propuesto hacia la rama principal.

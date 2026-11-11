@@ -222,6 +222,7 @@ def optimize_gallery(
     if backup.exists():
         _remove_tree_with_retries(backup)
     staging.mkdir(parents=False, exist_ok=False)
+    (staging / ".gitkeep").write_text("\n", encoding="utf-8")
 
     targets: dict[str, str] = {}
     for source in images:

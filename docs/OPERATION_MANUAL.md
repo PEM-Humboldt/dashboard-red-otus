@@ -142,13 +142,7 @@ Estas carpetas están excluidas de Git. Esta regla protege incorporaciones nueva
 
 ## 4. Inicio de la GUI
 
-Ejecute:
-
-```text
-processing/launch_gui.bat
-```
-
-También puede usar:
+Ejecute desde la raíz del proyecto:
 
 ```powershell
 python processing/run_gui.py
@@ -210,7 +204,22 @@ del identificador, nombre o sigla para localizar rápidamente una opción.
 
 ## 7. Procesamiento
 
-### Preparación opcional de la galería
+Seleccione **Procesar y publicar datos**. Durante la ejecución:
+
+- El botón de procesamiento permanece deshabilitado.
+- **Detener procesamiento** solicita una cancelación segura.
+- La barra muestra el avance.
+- La publicación anterior permanece activa hasta finalizar la nueva.
+
+No cierre la aplicación mientras el proceso esté en ejecución.
+
+**Detener procesamiento** solicita una cancelación cooperativa. El proceso
+termina en un punto seguro, elimina los temporales cuando es posible y conserva
+la publicación anterior. **Limpiar para nueva ejecución** vuelve a habilitar los
+parámetros después de finalizar, cancelar o reportar un error. **Abrir carpeta
+de datos publicados** se habilita cuando existe un resultado aprobado.
+
+### Preparación independiente de la galería
 
 Esta operación es independiente del procesamiento de datos y puede ejecutarse
 antes o después de una actualización. Organice primero los originales en
@@ -227,21 +236,6 @@ No copie posteriormente los originales de máxima resolución sobre las copias
 publicadas, porque volvería a aumentar el paquete del dashboard. Para una
 actualización futura, cambie el archivo correspondiente en
 `favorites_originals` y ejecute nuevamente la operación.
-
-Seleccione **Procesar y publicar datos**. Durante la ejecución:
-
-- El botón de procesamiento permanece deshabilitado.
-- **Detener procesamiento** solicita una cancelación segura.
-- La barra muestra el avance.
-- La publicación anterior permanece activa hasta finalizar la nueva.
-
-No cierre la aplicación mientras el proceso esté en ejecución.
-
-**Detener procesamiento** solicita una cancelación cooperativa. El proceso
-termina en un punto seguro, elimina los temporales cuando es posible y conserva
-la publicación anterior. **Limpiar para nueva ejecución** vuelve a habilitar los
-parámetros después de finalizar, cancelar o reportar un error. **Abrir carpeta
-de datos publicados** se habilita cuando existe un resultado aprobado.
 
 ## 8. Revisión de resultados
 
@@ -303,7 +297,48 @@ Las categorías tienen efectos diferentes:
 - **Configuración aplicada** registra una decisión explícita del usuario, como
   la reasignación manual de corporación.
 
-## 9. Criterio de publicación exitosa
+## 9. Preparación de la actualización institucional
+
+Utilice la sección 5 únicamente después de revisar los datos, las imágenes y el
+funcionamiento del dashboard en local:
+
+1. Confirme la carpeta interna donde se guardarán el ZIP y su SHA-256.
+2. Incluya los polígonos solo cuando sus archivos hayan cambiado y estén
+   validados.
+3. Marque la confirmación de revisión local.
+4. Seleccione **Validar contenido**.
+5. Revise el resumen y seleccione **Crear paquete de actualización**.
+6. Conserve juntos el ZIP y su archivo `.sha256`.
+
+El paquete contiene únicamente los insumos desplegables y sus archivos de
+control. No incorpora CSV originales, informes de calidad, código fuente ni
+credenciales. **Detener empaquetado** cancela la preparación antes de publicar
+los archivos finales.
+
+## 10. Publicación controlada en el servidor
+
+Esta sección requiere una ventana de acceso autorizada y un servidor preparado
+con el actualizador institucional. El operador recibe servidor, puerto,
+usuario y contraseña temporal:
+
+1. Seleccione el ZIP generado en la sección anterior.
+2. Ingrese los cuatro datos de conexión.
+3. Seleccione **Comprobar conexión** y revise release activa, fecha de
+   activación, Docker y espacio disponible.
+4. Seleccione **Transferir y activar actualización** y confirme el resumen.
+5. Espere el 100 %, la nueva release activa y la respuesta HTTP 200.
+6. Abra el dashboard publicado y realice una comprobación funcional.
+
+La primera conexión solicita confirmar la identidad observada del servidor y
+la recuerda localmente. Un cambio posterior bloquea la operación. La contraseña
+no se guarda. **Revertir a la release anterior** es una medida de recuperación
+y solo debe utilizarse cuando la versión activa deba retirarse.
+
+Los registros de cada consulta, actualización o reversión se guardan en la
+carpeta interna de auditoría, excluida de Git. La configuración particular del
+servidor y sus scripts de administración se mantienen en documentación interna.
+
+## 11. Criterio de publicación exitosa
 
 Una ejecución es exitosa cuando:
 
@@ -313,7 +348,7 @@ Una ejecución es exitosa cuando:
 - La validación independiente retorna `passed`.
 - No existen productos faltantes.
 
-## 10. Ejecución del dashboard
+## 12. Ejecución del dashboard
 
 En RStudio:
 
@@ -329,7 +364,7 @@ shiny::runApp("dashboard")
 
 La aplicación encuentra sus recursos sin depender del directorio desde el cual se inició.
 
-## 11. Uso del dashboard
+## 13. Uso del dashboard
 
 1. Seleccione vista de proyectos o corporaciones.
 2. Seleccione la entidad.
@@ -349,7 +384,7 @@ La aplicación presenta:
 
 En la tabla de indicadores, **Imágenes** representa las observaciones válidas y permanece estable entre intervalos. **Registros independientes** muestra las observaciones conservadas por la regla temporal seleccionada. Los números de Hill se calculan a partir de estos registros independientes.
 
-## 12. Validaciones antes del despliegue
+## 14. Validaciones antes del despliegue
 
 Desde la raíz:
 
@@ -358,9 +393,9 @@ python -m unittest discover -s processing/tests -v
 python processing/validate_release.py --output dashboard/data
 ```
 
-## 13. Despliegue de la aplicación
+## 15. Despliegue de la aplicación
 
-### 13.1 Posit Connect
+### 15.1 Posit Connect
 
 Publique como directorio de aplicación `dashboard/`. Incluya:
 
@@ -381,7 +416,7 @@ de la aplicación reproducible.
 
 `processing/` no es obligatorio para ejecutar el dashboard ya publicado. Sí debe conservarse en el repositorio para futuras actualizaciones de datos.
 
-### 13.2 Servidor institucional
+### 15.2 Servidor institucional
 
 La misma carpeta `dashboard/` puede ejecutarse en Linux mediante Shiny Server.
 La instalación concreta -contenedor, proxy, ruta pública, HTTPS, permisos,
@@ -393,7 +428,7 @@ certificados, usuarios o scripts de administración no deben publicarse en este
 repositorio. El puerto de Shiny tampoco debe exponerse directamente a Internet;
 la publicación debe pasar por el proxy y los controles autorizados por TI.
 
-## 14. Solución de problemas
+## 16. Solución de problemas
 
 | Situación | Acción recomendada |
 |---|---|
@@ -409,7 +444,7 @@ la publicación debe pasar por el proxy y los controles autorizados por TI.
 | La corporación no corresponde | Revise coordenadas y límites; use reasignación solo con soporte técnico. |
 | La carpeta de resultados está bloqueada | Cierre el Explorador, el reporte HTML o una sesión del dashboard que mantenga archivos abiertos y repita la ejecución. |
 
-## 15. Conservación y actualización
+## 17. Conservación y actualización
 
 El pipeline mantiene una sola publicación activa y un solo conjunto vigente de
 informes en `processing_reports/`. Si se requiere historial, copie externamente
@@ -417,7 +452,7 @@ informes en `processing_reports/`. Si se requiere historial, copie externamente
 
 No edite manualmente los Parquet. Las correcciones deben aplicarse en Wildlife Insights, en los parámetros autorizados o en el código versionado.
 
-## 16. Simulación recomendada de una actualización
+## 18. Simulación recomendada de una actualización
 
 Antes de un despliegue institucional, ejecute el siguiente ensayo operativo:
 
@@ -439,14 +474,14 @@ y las pruebas funcionales realizadas. Las pruebas automatizadas verifican que
 una cancelación anterior a la activación conserva el manifiesto vigente sin
 modificaciones.
 
-## 17. Responsables y licencia
+## 19. Responsables y licencia
 
 - Desarrollo: Cristian C. Acevedo, Ingeniero de Soluciones.
 - Supervisión: Angélica Diaz Pulido, Investigador Adjunto, Centro Estudios Socioecológicos y Cambio Global, Dirección de Conocimiento, Instituto Humboldt.
 - Versión: `v2026.1.0`.
 - Licencia del código: MIT.
 
-## 18. Manejo de información privada
+## 20. Manejo de información privada
 
 El repositorio público no debe contener datos de operación. `.gitignore` excluye:
 

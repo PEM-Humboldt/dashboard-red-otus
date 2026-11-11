@@ -65,6 +65,7 @@ class GalleryOptimizationTests(unittest.TestCase):
             manifest = json.loads((output / ".gallery_manifest.json").read_text(encoding="utf-8"))
             self.assertEqual(manifest["settings"]["max_dimension"], 1600)
             self.assertEqual(manifest["settings"]["jpeg_quality"], 82)
+            self.assertTrue((output / ".gitkeep").is_file())
 
             second = optimize_gallery(config)
             self.assertEqual(second["summary"]["processed"], 0)

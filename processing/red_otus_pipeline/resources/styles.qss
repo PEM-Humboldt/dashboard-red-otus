@@ -4,6 +4,7 @@ QDialog { background-color: #f3f7fa; color: #203b63; }
 QFrame#header { background: #203b63; border: none; }
 QLabel#appTitle { color: white; font-size: 24px; font-weight: 700; }
 QLabel#appSubtitle { color: #dceaf5; font-size: 13px; }
+QLabel#workflowStatus { color: #bfe8dc; font-size: 12px; font-weight: 600; padding-top: 6px; }
 QFrame#card { background: white; border: 1px solid #d4e0ea; border-radius: 10px; }
 QLabel#sectionTitle { color: #174f82; font-size: 17px; font-weight: 700; }
 QLabel#sectionDescription, QLabel#hint, QLabel#footer { color: #62768a; }
@@ -69,7 +70,8 @@ QCheckBox { spacing: 7px; }
 QCheckBox::indicator { width: 17px; height: 17px; }
 QToolTip { background: #203b63; color: white; border: 0; padding: 6px; }
 QMessageBox { background-color: white; }
-QMessageBox QLabel { background-color: transparent; color: #203b63; min-width: 430px; }
+QMessageBox QLabel { background-color: transparent; color: #203b63; }
+QMessageBox QLabel#qt_msgbox_label { min-width: 340px; max-width: 560px; }
 QMessageBox QPushButton { min-width: 80px; background: #eef4f8; color: #203b63; }
 QCalendarWidget QWidget { background-color: white; color: #203b63; }
 QCalendarWidget QWidget#qt_calendar_navigationbar { background-color: #eef4f8; }

@@ -7,6 +7,8 @@
 /processing_reports/*
 /dashboard/www/images/favorites/*
 /docs/Manual_usuario_Dashboard_Red_OTUS_2026.docx
+/internal_deployment/
+/processing/launch_gui.bat
 
 # Publicaciones temporales y respaldos transaccionales
 **/*.staging-*/

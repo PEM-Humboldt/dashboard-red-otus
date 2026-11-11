@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import threading
 import traceback
 import webbrowser
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
-from PySide6.QtCore import QDate, QObject, Qt, QThread, Signal, Slot
+from PySide6.QtCore import QDate, QObject, QSettings, Qt, QThread, QTimer, Signal, Slot
 from PySide6.QtGui import QCloseEvent, QIcon
 from PySide6.QtWidgets import (
     QApplication, QCheckBox, QComboBox, QCompleter, QDateEdit, QDialog, QDialogButtonBox,
@@ -22,9 +23,24 @@ from PySide6.QtWidgets import (
 
 from . import __version__
 from .config import PipelineConfig
+from .deployment import (
+    Authentication,
+    DeploymentCancelled,
+    ServerProfile,
+    SSHDeploymentClient,
+    inspect_update_package,
+    probe_server_fingerprint,
+    write_audit_record,
+)
 from .engine import run_pipeline
 from .gallery import GalleryCancelled, GalleryConfig, optimize_gallery
 from .input_inspection import InputInspection, inspect_input
+from .packaging import (
+    PackageCancelled,
+    UpdatePackageConfig,
+    create_update_package,
+    inspect_update_sources,
+)
 
 
 APP_NAME = "Generador de datos para el Dashboard Red OTUS"
@@ -65,6 +81,62 @@ def _format_file_size(value: int | float) -> str:
             return f"{size:.{digits}f} {unit}".replace(".", ",")
         size /= 1024
     return f"{size:.1f} GB".replace(".", ",")
+
+
+def _format_server_datetime(value: object) -> str:
+    """Presenta una fecha del servidor en formato local legible."""
+
+    text = str(value or "").strip()
+    if not text:
+        return "no disponible"
+    try:
+        parsed = datetime.fromisoformat(text)
+        timezone = parsed.strftime("UTC%z")
+        if len(timezone) == 8:
+            timezone = f"{timezone[:6]}:{timezone[6:]}"
+        return f"{parsed.strftime('%d/%m/%Y %H:%M:%S')} ({timezone})"
+    except ValueError:
+        return text
+
+
+def _show_dialog(
+    parent: QWidget,
+    title: str,
+    text: str,
+    icon: QMessageBox.Icon = QMessageBox.Icon.Information,
+    buttons: QMessageBox.StandardButton = QMessageBox.StandardButton.Ok,
+    default: QMessageBox.StandardButton = QMessageBox.StandardButton.Ok,
+) -> QMessageBox.StandardButton:
+    """Muestra un diálogo compacto con texto y botones en español."""
+
+    box = QMessageBox(parent)
+    box.setWindowTitle(title)
+    box.setIcon(icon)
+    box.setTextFormat(Qt.TextFormat.PlainText)
+    box.setText(text)
+    box.setStandardButtons(buttons)
+    box.setDefaultButton(default)
+    labels = {
+        QMessageBox.StandardButton.Ok: "Aceptar",
+        QMessageBox.StandardButton.Yes: "Sí",
+        QMessageBox.StandardButton.No: "No",
+        QMessageBox.StandardButton.Cancel: "Cancelar",
+        QMessageBox.StandardButton.Close: "Cerrar",
+    }
+    for standard_button, label in labels.items():
+        button = box.button(standard_button)
+        if button is not None:
+            button.setText(label)
+    message_label = box.findChild(QLabel, "qt_msgbox_label")
+    if message_label is not None:
+        message_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        message_label.setWordWrap(True)
+        message_label.setMinimumWidth(340)
+        message_label.setMaximumWidth(560)
+    button_box = box.findChild(QDialogButtonBox)
+    if button_box is not None:
+        button_box.setCenterButtons(True)
+    return QMessageBox.StandardButton(box.exec())
 
 
 class ScrollSafeDateEdit(QDateEdit):
@@ -297,6 +369,138 @@ class GalleryWorker(QObject):
             self.finished.emit()
 
 
+class PackageWorker(QObject):
+    """Crea el paquete de actualización sin bloquear la interfaz."""
+
+    progress = Signal(int, int, str)
+    completed = Signal(dict)
+    failed = Signal(str)
+    cancelled = Signal()
+    finished = Signal()
+
+    def __init__(self, config: UpdatePackageConfig) -> None:
+        super().__init__()
+        self.config = config
+        self._cancel_event = threading.Event()
+
+    def cancel(self) -> None:
+        """Solicita detener la creación antes de publicar archivos finales."""
+        self._cancel_event.set()
+
+    def _progress(self, current: int, total: int, message: str) -> None:
+        if self._cancel_event.is_set():
+            raise PackageCancelled()
+        self.progress.emit(current, total, message)
+
+    @Slot()
+    def run(self) -> None:
+        """Valida y crea el paquete, comunicando el resultado mediante señales."""
+        try:
+            self.completed.emit(create_update_package(self.config, self._progress))
+        except PackageCancelled:
+            self.cancelled.emit()
+        except Exception:
+            self.failed.emit(traceback.format_exc())
+        finally:
+            self.finished.emit()
+
+
+class DeploymentWorker(QObject):
+    """Ejecuta consultas y publicaciones SSH sin bloquear la interfaz."""
+
+    progress = Signal(int, int, str)
+    log = Signal(str)
+    completed = Signal(dict)
+    failed = Signal(str)
+    cancelled = Signal()
+    finished = Signal()
+
+    def __init__(
+        self,
+        action: str,
+        profile: ServerProfile,
+        authentication: Authentication | None,
+        package_path: Path | None,
+        audit_dir: Path,
+    ) -> None:
+        super().__init__()
+        self.action = action
+        self.profile = profile
+        self.authentication = authentication
+        self.package_path = package_path
+        self.audit_dir = audit_dir
+        self._cancel_event = threading.Event()
+
+    def cancel(self) -> None:
+        self._cancel_event.set()
+
+    def _progress(self, current: int, total: int, message: str) -> None:
+        if self._cancel_event.is_set():
+            raise DeploymentCancelled()
+        self.progress.emit(current, total, message)
+
+    @Slot()
+    def run(self) -> None:
+        try:
+            if self.action == "fingerprint":
+                fingerprint = probe_server_fingerprint(self.profile.host, self.profile.port)
+                self.completed.emit({"action": "fingerprint", "fingerprint": fingerprint})
+                return
+            if self.authentication is None:
+                raise ValueError("Falta la autenticación SSH")
+            with SSHDeploymentClient(
+                self.profile,
+                self.authentication,
+                log=self.log.emit,
+                cancelled=self._cancel_event.is_set,
+            ) as client:
+                if self.action == "check":
+                    self._progress(1, 2, "Conexión SSH autenticada")
+                    result = client.inspect()
+                    self._progress(2, 2, "Servidor preparado para recibir actualizaciones")
+                    result.update(action="check", audit_path=str(
+                        write_audit_record(result, "check", self.audit_dir)
+                    ))
+                elif self.action == "deploy":
+                    if self.package_path is None:
+                        raise ValueError("Seleccione el paquete que desea publicar")
+                    info = inspect_update_package(self.package_path)
+                    result = client.deploy(info, self._progress)
+                    result.update(action="deploy", audit_path=str(
+                        write_audit_record(result, "deploy", self.audit_dir)
+                    ))
+                elif self.action == "rollback":
+                    result = client.rollback(self._progress)
+                    result.update(action="rollback", audit_path=str(
+                        write_audit_record(result, "rollback", self.audit_dir)
+                    ))
+                else:
+                    raise ValueError(f"Acción de servidor desconocida: {self.action}")
+            self.completed.emit(result)
+        except DeploymentCancelled:
+            self.cancelled.emit()
+        except Exception:
+            detail = traceback.format_exc()
+            try:
+                write_audit_record(
+                    {
+                        "host": self.profile.host,
+                        "operation": self.action,
+                        "error": next(
+                            (line.strip() for line in reversed(detail.splitlines()) if line.strip()),
+                            "Error no identificado",
+                        ),
+                    },
+                    "failure",
+                    self.audit_dir,
+                )
+            except Exception:
+                pass
+            self.failed.emit(detail)
+        finally:
+            self.finished.emit()
+
+
 class PipelineWindow(QMainWindow):
     """Ventana principal para validación, parametrización y publicación."""
     def __init__(self) -> None:
@@ -309,7 +513,17 @@ class PipelineWindow(QMainWindow):
         self.worker: PipelineWorker | None = None
         self.gallery_worker_thread: QThread | None = None
         self.gallery_worker: GalleryWorker | None = None
+        self.package_worker_thread: QThread | None = None
+        self.package_worker: PackageWorker | None = None
+        self.deployment_worker_thread: QThread | None = None
+        self.deployment_worker: DeploymentWorker | None = None
         self.last_result: dict | None = None
+        self.last_package: dict | None = None
+        self.package_validation: dict | None = None
+        self.last_server_result: dict | None = None
+        self.server_connection_verified = False
+        self.pending_server_fingerprint: str | None = None
+        self.settings = QSettings("Instituto Humboldt", "Red OTUS Processing")
         self._logged_stages: set[str] = set()
         self._execution_requires_reset = False
         self.setWindowTitle(f"{APP_NAME} · Versión {__version__}")
@@ -322,6 +536,8 @@ class PipelineWindow(QMainWindow):
         self._load_styles()
         self._connect_invalidation()
         self._update_process_enabled()
+        self._update_package_enabled()
+        self._update_deployment_enabled()
 
     def _load_styles(self) -> None:
         style_path = _resources_dir() / "styles.qss"
@@ -347,8 +563,12 @@ class PipelineWindow(QMainWindow):
             objectName="appSubtitle", alignment=Qt.AlignmentFlag.AlignCenter,
         )
         subtitle.setWordWrap(True)
+        self.workflow_status = QLabel(objectName="workflowStatus")
+        self.workflow_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.workflow_status.setWordWrap(True)
         header_layout.addWidget(title)
         header_layout.addWidget(subtitle)
+        header_layout.addWidget(self.workflow_status)
         root_layout.addWidget(header)
         scroll = QScrollArea(widgetResizable=True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
@@ -359,11 +579,16 @@ class PipelineWindow(QMainWindow):
         content_layout.setSpacing(16)
         self.paths_card = self._build_paths_card()
         self.parameters_card = self._build_parameters_card()
+        self.execution_card = self._build_execution_card()
         self.gallery_card = self._build_gallery_card()
+        self.package_card = self._build_package_card()
+        self.deployment_card = self._build_deployment_card()
         content_layout.addWidget(self.paths_card)
         content_layout.addWidget(self.parameters_card)
+        content_layout.addWidget(self.execution_card)
         content_layout.addWidget(self.gallery_card)
-        content_layout.addWidget(self._build_execution_card())
+        content_layout.addWidget(self.package_card)
+        content_layout.addWidget(self.deployment_card)
         scroll.setWidget(content)
         root_layout.addWidget(scroll, 1)
         footer = QLabel(
@@ -375,6 +600,28 @@ class PipelineWindow(QMainWindow):
         footer.setContentsMargins(12, 10, 12, 12)
         root_layout.addWidget(footer)
         self.setCentralWidget(central)
+        self._refresh_workflow_status()
+
+    def _refresh_workflow_status(self) -> None:
+        if not hasattr(self, "workflow_status"):
+            return
+        gallery_ready = (self.root_path / "dashboard" / "www" / "images" / "favorites" / ".gallery_manifest.json").is_file()
+        deployed = bool(
+            self.last_server_result
+            and self.last_server_result.get("action") in {"deploy", "rollback"}
+            and self.last_server_result.get("status") in {"success", "rolled_back"}
+        )
+        steps = (
+            ("1 Insumos", self.inspection is not None),
+            ("2 Parámetros", self.inspection is not None and bool(self.selected_projects)),
+            ("3 Procesamiento", self.last_result is not None),
+            ("4 Galería", gallery_ready),
+            ("5 Paquete", self.last_package is not None),
+            ("6 Servidor", deployed),
+        )
+        self.workflow_status.setText(
+            "   →   ".join(f"{'✓' if ready else '•'} {label}" for label, ready in steps)
+        )
 
     def _card(self, title: str, description: str) -> tuple[QFrame, QVBoxLayout]:
         card = QFrame(objectName="card")
@@ -545,7 +792,7 @@ class PipelineWindow(QMainWindow):
 
     def _build_gallery_card(self) -> QWidget:
         card, layout = self._card(
-            "3. Preparación de imágenes para la galería",
+            "4. Preparación de imágenes para la galería",
             "Conserve aquí las fotografías originales de máxima resolución. La herramienta genera copias livianas para el dashboard sin modificar los archivos fuente.",
         )
         grid = QGridLayout()
@@ -600,7 +847,7 @@ class PipelineWindow(QMainWindow):
 
     def _build_execution_card(self) -> QWidget:
         card, layout = self._card(
-            "4. Ejecución y control de calidad",
+            "3. Ejecución y control de calidad",
             "La publicación anterior solo se reemplaza después de completar y validar correctamente la nueva ejecución.",
         )
         buttons = QHBoxLayout()
@@ -682,11 +929,205 @@ class PipelineWindow(QMainWindow):
         self.open_report_button.clicked.connect(self.open_quality_report)
         return card
 
+    def _build_package_card(self) -> QWidget:
+        card, layout = self._card(
+            "5. Preparación de la actualización para el servidor",
+            "Genere un paquete íntegro solamente después de revisar el dashboard en local. La herramienta valida los datos y las imágenes, calcula sus huellas y no incluye código, archivos RAW ni reportes de trabajo.",
+        )
+        grid = QGridLayout()
+        grid.setColumnStretch(1, 1)
+        internal_output = self.root_path / "internal_deployment" / "packages"
+        legacy_output = Path.home() / "Documents" / "Red_OTUS" / "packages"
+        stored_output = str(self.settings.value("package_output_dir", "")).strip()
+        default_output = (
+            str(internal_output)
+            if not stored_output or Path(stored_output).expanduser() == legacy_output
+            else stored_output
+        )
+        self.package_output = QLineEdit(default_output)
+        self.package_browse = QPushButton("Examinar…")
+        self.package_browse.clicked.connect(lambda: self._browse(self.package_output, True))
+        destination_label = QLabel(
+            "Carpeta interna donde se guardarán el ZIP y su SHA-256",
+            objectName="fieldLabel",
+        )
+        destination_label.setWordWrap(True)
+        destination_label.setMaximumWidth(300)
+        grid.addWidget(destination_label, 0, 0)
+        grid.addWidget(self.package_output, 0, 1)
+        grid.addWidget(self.package_browse, 0, 2)
+        layout.addLayout(grid)
+
+        self.package_include_spatial = QCheckBox(
+            "Incluir los polígonos espaciales de dashboard/spatial"
+        )
+        self.package_include_spatial.setToolTip(
+            "Déjelo desmarcado en las actualizaciones ordinarias. Úselo únicamente cuando los límites geográficos hayan cambiado y estén validados."
+        )
+        spatial_hint = QLabel(
+            "Los datos procesados y las imágenes se incluyen siempre. Los polígonos son opcionales y permanecen desmarcados por defecto.",
+            objectName="hint",
+        )
+        spatial_hint.setWordWrap(True)
+        layout.addWidget(self.package_include_spatial)
+        layout.addWidget(spatial_hint)
+
+        self.package_approval = QCheckBox(
+            "Confirmo que los datos, las imágenes y el funcionamiento del dashboard fueron revisados en local."
+        )
+        self.package_approval.setObjectName("approvalCheck")
+        layout.addWidget(self.package_approval)
+
+        controls = QGridLayout()
+        controls.setColumnStretch(3, 1)
+        self.package_validate_button = QPushButton("Validar contenido")
+        self.package_create_button = QPushButton(
+            "Crear paquete de actualización", objectName="successButton", enabled=False
+        )
+        self.package_stop_button = QPushButton(
+            "Detener empaquetado", objectName="dangerButton", enabled=False
+        )
+        self.package_open_button = QPushButton("Abrir carpeta del paquete", enabled=False)
+        self.package_copy_button = QPushButton("Copiar resumen", enabled=False)
+        controls.addWidget(self.package_validate_button, 0, 0)
+        controls.addWidget(self.package_create_button, 0, 1)
+        controls.addWidget(self.package_stop_button, 0, 2)
+        controls.addWidget(self.package_open_button, 1, 0)
+        controls.addWidget(self.package_copy_button, 1, 1)
+        layout.addLayout(controls)
+
+        self.package_progress = QProgressBar(value=0)
+        self.package_status = QLabel(
+            "Valide el contenido cuando la publicación local esté aprobada.", objectName="hint"
+        )
+        self.package_status.setWordWrap(True)
+        layout.addWidget(self.package_progress)
+        layout.addWidget(self.package_status)
+
+        self.package_validate_button.clicked.connect(self.validate_package_content)
+        self.package_create_button.clicked.connect(self.start_packaging)
+        self.package_stop_button.clicked.connect(self.stop_packaging)
+        self.package_open_button.clicked.connect(self.open_package_folder)
+        self.package_copy_button.clicked.connect(self.copy_package_summary)
+        self.package_output.textChanged.connect(self._invalidate_package_validation)
+        self.package_include_spatial.toggled.connect(self._invalidate_package_validation)
+        self.package_approval.toggled.connect(self._update_package_enabled)
+        return card
+
+    def _build_deployment_card(self) -> QWidget:
+        card, layout = self._card(
+            "6. Publicación de la actualización en el servidor",
+            "Ingrese los cuatro datos entregados por TI y publique el paquete aprobado. La aplicación verifica la identidad SSH, transfiere los archivos y ejecuta el procedimiento controlado del servidor; el usuario no debe escribir comandos. No modifica Nginx, HTTPS ni el puerto 443.",
+        )
+        endpoint = QGroupBox("Datos de conexión suministrados por TI")
+        grid = QGridLayout(endpoint)
+        grid.setColumnStretch(1, 1)
+        grid.setColumnStretch(3, 1)
+        self.server_host = QLineEdit(str(self.settings.value("server_host", "")))
+        self.server_port = QLineEdit(str(self.settings.value("server_port", "22")))
+        self.server_port.setMaximumWidth(120)
+        self.server_user = QLineEdit(str(self.settings.value("server_user", "")))
+        self.server_password = QLineEdit()
+        self.server_password.setEchoMode(QLineEdit.EchoMode.Password)
+        self.server_password.setPlaceholderText("No se guarda")
+        grid.addWidget(QLabel("Servidor", objectName="fieldLabel"), 0, 0)
+        grid.addWidget(self.server_host, 0, 1)
+        grid.addWidget(QLabel("Puerto SSH", objectName="fieldLabel"), 0, 2)
+        grid.addWidget(self.server_port, 0, 3)
+        grid.addWidget(QLabel("Usuario", objectName="fieldLabel"), 1, 0)
+        grid.addWidget(self.server_user, 1, 1)
+        grid.addWidget(QLabel("Contraseña", objectName="fieldLabel"), 1, 2)
+        grid.addWidget(self.server_password, 1, 3)
+        self.server_identity_status = QLabel(
+            "La identidad SSH se verificará automáticamente en la primera conexión y se recordará en este equipo. "
+            "La contraseña no se guarda; el procedimiento la reutiliza en memoria si el servidor solicita elevar permisos para Docker.",
+            objectName="hint",
+        )
+        self.server_identity_status.setWordWrap(True)
+        grid.addWidget(self.server_identity_status, 2, 0, 1, 4)
+        layout.addWidget(endpoint)
+
+        package_box = QGroupBox("Actualización que se publicará")
+        package_grid = QGridLayout(package_box)
+        package_grid.setColumnStretch(1, 1)
+        self.server_package = QLineEdit(str(self.settings.value("server_last_package", "")))
+        self.server_package_browse = QPushButton("Seleccionar ZIP…")
+        self.server_package_summary = QLabel(
+            "Genere un paquete en la sección 5 o seleccione uno existente con su archivo .sha256.",
+            objectName="hint",
+        )
+        self.server_package_summary.setWordWrap(True)
+        package_grid.addWidget(QLabel("Paquete ZIP", objectName="fieldLabel"), 0, 0)
+        package_grid.addWidget(self.server_package, 0, 1)
+        package_grid.addWidget(self.server_package_browse, 0, 2)
+        package_grid.addWidget(self.server_package_summary, 1, 0, 1, 3)
+        layout.addWidget(package_box)
+
+        controls = QGridLayout()
+        controls.setColumnStretch(5, 1)
+        self.server_check_button = QPushButton("Comprobar conexión")
+        self.server_deploy_button = QPushButton(
+            "Transferir y activar actualización", objectName="successButton"
+        )
+        self.server_stop_button = QPushButton(
+            "Detener operación", objectName="dangerButton", enabled=False
+        )
+        self.server_rollback_button = QPushButton("Revertir a la release anterior")
+        self.server_audit_button = QPushButton("Abrir registros")
+        controls.addWidget(self.server_check_button, 0, 0)
+        controls.addWidget(self.server_deploy_button, 0, 1)
+        controls.addWidget(self.server_stop_button, 0, 2)
+        controls.addWidget(self.server_rollback_button, 1, 0)
+        controls.addWidget(self.server_audit_button, 1, 1)
+        layout.addLayout(controls)
+
+        self.server_progress = QProgressBar(value=0)
+        self.server_status = QLabel(
+            "Configure el perfil y compruebe la conexión antes de publicar.", objectName="hint"
+        )
+        self.server_status.setWordWrap(True)
+        self.server_log = QPlainTextEdit(readOnly=True, minimumHeight=150, objectName="console")
+        self.server_log.setPlaceholderText(
+            "Registro de solo lectura: aquí se mostrará el procedimiento ejecutado sin contraseñas."
+        )
+        layout.addWidget(self.server_progress)
+        layout.addWidget(self.server_status)
+        layout.addWidget(self.server_log)
+
+        self.server_check_button.clicked.connect(lambda: self.start_server_operation("check"))
+        self.server_deploy_button.clicked.connect(lambda: self.start_server_operation("deploy"))
+        self.server_stop_button.clicked.connect(self.stop_server_operation)
+        self.server_rollback_button.clicked.connect(lambda: self.start_server_operation("rollback"))
+        self.server_audit_button.clicked.connect(self.open_audit_folder)
+        self.server_package_browse.clicked.connect(self._browse_server_package)
+        self.server_package.textChanged.connect(self._refresh_server_package_summary)
+        for field in (
+            self.server_host,
+            self.server_port,
+            self.server_user,
+            self.server_password,
+            self.server_package,
+        ):
+            field.textChanged.connect(self._update_deployment_enabled)
+        for field in (
+            self.server_host,
+            self.server_port,
+            self.server_user,
+            self.server_password,
+        ):
+            field.textChanged.connect(self._invalidate_server_check)
+        self.server_host.textChanged.connect(self._refresh_server_identity_status)
+        self.server_port.textChanged.connect(self._refresh_server_identity_status)
+        self._refresh_server_identity_status()
+        self._refresh_server_package_summary()
+        return card
+
     def _connect_invalidation(self) -> None:
         self.raw_path.textChanged.connect(self.invalidate_input)
         self.shape_path.textChanged.connect(self.invalidate_input)
         for field in (self.output_path, self.reports_path, self.initiative, self.dashboard_title):
             field.textChanged.connect(self._update_process_enabled)
+        self.output_path.textChanged.connect(self._invalidate_package_validation)
         self.start_date.dateChanged.connect(self._update_process_enabled)
         self.end_date.dateChanged.connect(self._update_process_enabled)
 
@@ -736,10 +1177,11 @@ class PipelineWindow(QMainWindow):
             for warning in self.inspection.warnings:
                 self._log(f"[ADVERTENCIA] {warning}")
             self._update_process_enabled()
+            self._refresh_workflow_status()
         except Exception as exc:
             self.inspection = None
             self.validation_status.setText("La validación no fue satisfactoria")
-            QMessageBox.critical(self, "Validación de insumos", str(exc))
+            _show_dialog(self, "Validación de insumos", str(exc), QMessageBox.Icon.Critical)
             self._update_process_enabled()
         finally:
             QApplication.restoreOverrideCursor()
@@ -768,7 +1210,12 @@ class PipelineWindow(QMainWindow):
         if dialog.exec() == QDialog.DialogCode.Accepted:
             selected = dialog.selected_ids()
             if not selected:
-                QMessageBox.warning(self, "Selección de proyectos", "Debe seleccionar al menos un proyecto.")
+                _show_dialog(
+                    self,
+                    "Selección de proyectos",
+                    "Debe seleccionar al menos un proyecto.",
+                    QMessageBox.Icon.Warning,
+                )
                 return
             self.selected_projects = selected
             self.corporation_overrides = {project: corporation for project, corporation in self.corporation_overrides.items() if project in selected}
@@ -834,6 +1281,8 @@ class PipelineWindow(QMainWindow):
         running = bool(
             (self.worker_thread and self.worker_thread.isRunning())
             or (self.gallery_worker_thread and self.gallery_worker_thread.isRunning())
+            or (self.package_worker_thread and self.package_worker_thread.isRunning())
+            or (self.deployment_worker_thread and self.deployment_worker_thread.isRunning())
         )
         enabled = bool(
             self.inspection is not None and self.selected_projects and self._selected_intervals()
@@ -853,6 +1302,8 @@ class PipelineWindow(QMainWindow):
         running = bool(
             (self.worker_thread and self.worker_thread.isRunning())
             or (self.gallery_worker_thread and self.gallery_worker_thread.isRunning())
+            or (self.package_worker_thread and self.package_worker_thread.isRunning())
+            or (self.deployment_worker_thread and self.deployment_worker_thread.isRunning())
         )
         source_ready = bool(getattr(self, "gallery_source", None) and self.gallery_source.text().strip())
         if hasattr(self, "gallery_button"):
@@ -870,8 +1321,12 @@ class PipelineWindow(QMainWindow):
         try:
             config.validate()
         except Exception as exc:
-            QMessageBox.warning(self, "Preparación de la galería", str(exc))
+            _show_dialog(self, "Preparación de la galería", str(exc), QMessageBox.Icon.Warning)
             return
+        self._invalidate_package_validation()
+        self.package_status.setText(
+            "La galería está cambiando. Valide nuevamente el contenido cuando finalice."
+        )
         self.gallery_progress.setValue(0)
         self.gallery_status.setText("Revisando y optimizando las fotografías…")
         self.gallery_button.setEnabled(False)
@@ -892,6 +1347,8 @@ class PipelineWindow(QMainWindow):
         self.gallery_worker_thread.finished.connect(self._on_gallery_finished)
         self.gallery_worker_thread.start()
         self._update_process_enabled()
+        self._update_package_enabled()
+        self._update_deployment_enabled()
 
     @Slot(int, int, str)
     def _on_gallery_progress(self, current: int, total: int, message: str) -> None:
@@ -907,10 +1364,17 @@ class PipelineWindow(QMainWindow):
                 f"Publicación finalizada: {summary['processed']} optimizadas y "
                 f"{summary['skipped']} reutilizadas. Reducción: {_format_percent(summary['saved_percent'])}."
             )
+            self.package_status.setText(
+                "Imágenes publicadas correctamente. Revise el dashboard en local y luego valide el paquete."
+            )
+            self._refresh_workflow_status()
         else:
             self.gallery_status.setText(
                 f"No se publicó la nueva galería: {summary['failed']} archivo(s) requieren revisión. "
                 "La versión anterior permanece disponible."
+            )
+            self.package_status.setText(
+                "La galería nueva no fue publicada. Resuelva sus observaciones antes de validar el paquete."
             )
         GallerySummaryDialog(summary, self).exec()
 
@@ -939,11 +1403,12 @@ class PipelineWindow(QMainWindow):
     def _on_gallery_failed(self, detail: str) -> None:
         last_line = next((line.strip() for line in reversed(detail.splitlines()) if line.strip()), "Error no identificado")
         self.gallery_status.setText(f"No fue posible preparar la galería: {last_line}")
-        QMessageBox.critical(
+        _show_dialog(
             self,
             "Preparación de la galería",
             "La operación no pudo completarse. Los archivos publicados previamente se conservaron. "
             f"Detalle: {last_line}",
+            QMessageBox.Icon.Critical,
         )
 
     @Slot()
@@ -955,11 +1420,570 @@ class PipelineWindow(QMainWindow):
         self.gallery_source.setEnabled(True)
         self._update_gallery_enabled()
         self._update_process_enabled()
+        self._update_package_enabled()
+        self._update_deployment_enabled()
 
     @Slot()
     def open_gallery_source(self) -> None:
         """Abre la carpeta configurada para imágenes originales."""
         path = Path(self.gallery_source.text()).expanduser().resolve()
+        path.mkdir(parents=True, exist_ok=True)
+        os.startfile(path)  # type: ignore[attr-defined]
+
+    def _package_config(self) -> UpdatePackageConfig:
+        spatial = self.root_path / "dashboard" / "spatial"
+        return UpdatePackageConfig(
+            data_root=Path(self.output_path.text()).expanduser().resolve(),
+            favorites_root=Path(self.gallery_output.text()).expanduser().resolve(),
+            output_dir=Path(self.package_output.text()).expanduser().resolve(),
+            spatial_root=spatial.resolve() if self.package_include_spatial.isChecked() else None,
+        )
+
+    @Slot()
+    def _invalidate_package_validation(self) -> None:
+        """Exige una nueva validación cuando cambia algún componente del paquete."""
+        self.package_validation = None
+        if hasattr(self, "package_approval"):
+            self.package_approval.setChecked(False)
+        if hasattr(self, "package_status"):
+            self.package_status.setText(
+                "El contenido cambió o aún no se ha validado. Ejecute 'Validar contenido'."
+            )
+        self._update_package_enabled()
+
+    @Slot()
+    def validate_package_content(self) -> None:
+        """Comprueba los manifiestos y presenta el contenido que será empaquetado."""
+        try:
+            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+            summary = inspect_update_sources(self._package_config())
+            self.package_validation = summary
+            spatial = (
+                f" y {summary['spatial_count']} archivo(s) espaciales"
+                if summary["include_spatial"]
+                else "; sin polígonos espaciales"
+            )
+            self.package_status.setText(
+                f"Contenido válido: {summary['dataset_count']} datasets, "
+                f"{summary['favorite_count']} imágenes{spatial}. "
+                f"Fecha de corte: {summary['cutoff_date'] or 'no informada'}."
+            )
+        except Exception as exc:
+            self.package_validation = None
+            self.package_status.setText("La validación del paquete no fue satisfactoria.")
+            _show_dialog(self, "Validación del paquete", str(exc), QMessageBox.Icon.Critical)
+        finally:
+            QApplication.restoreOverrideCursor()
+            self._update_package_enabled()
+
+    @Slot()
+    def _update_package_enabled(self) -> None:
+        if not hasattr(self, "package_validate_button"):
+            return
+        running = bool(
+            (self.worker_thread and self.worker_thread.isRunning())
+            or (self.gallery_worker_thread and self.gallery_worker_thread.isRunning())
+            or (self.package_worker_thread and self.package_worker_thread.isRunning())
+            or (self.deployment_worker_thread and self.deployment_worker_thread.isRunning())
+        )
+        has_destination = bool(self.package_output.text().strip())
+        self.package_validate_button.setEnabled(has_destination and not running)
+        self.package_create_button.setEnabled(
+            bool(self.package_validation)
+            and self.package_approval.isChecked()
+            and has_destination
+            and not running
+        )
+        self.package_browse.setEnabled(not running)
+        self.package_output.setEnabled(not running)
+        self.package_include_spatial.setEnabled(not running)
+        self.package_approval.setEnabled(not running)
+
+    @Slot()
+    def start_packaging(self) -> None:
+        """Inicia la creación manual del paquete previamente aprobado."""
+        if not self.package_validation or not self.package_approval.isChecked():
+            _show_dialog(
+                self,
+                "Preparación del paquete",
+                "Valide el contenido y confirme la revisión local antes de continuar.",
+                QMessageBox.Icon.Warning,
+            )
+            return
+        config = self._package_config()
+        self.last_package = None
+        self.package_progress.setValue(0)
+        self.package_status.setText("Preparando el paquete de actualización…")
+        self.package_open_button.setEnabled(False)
+        self.package_copy_button.setEnabled(False)
+        self.package_stop_button.setEnabled(True)
+        self.settings.setValue("package_output_dir", str(config.output_dir))
+        self.package_worker_thread = QThread(self)
+        self.package_worker = PackageWorker(config)
+        self.package_worker.moveToThread(self.package_worker_thread)
+        self.package_worker_thread.started.connect(self.package_worker.run)
+        self.package_worker.progress.connect(self._on_package_progress)
+        self.package_worker.completed.connect(self._on_package_completed)
+        self.package_worker.cancelled.connect(self._on_package_cancelled)
+        self.package_worker.failed.connect(self._on_package_failed)
+        self.package_worker.finished.connect(self.package_worker_thread.quit)
+        self.package_worker.finished.connect(self.package_worker.deleteLater)
+        self.package_worker_thread.finished.connect(self.package_worker_thread.deleteLater)
+        self.package_worker_thread.finished.connect(self._on_package_finished)
+        self.package_worker_thread.start()
+        self._update_process_enabled()
+        self._update_gallery_enabled()
+        self._update_package_enabled()
+        self._update_deployment_enabled()
+
+    @Slot(int, int, str)
+    def _on_package_progress(self, current: int, total: int, message: str) -> None:
+        self.package_progress.setValue(round(current / total * 100) if total else 0)
+        self.package_status.setText(message)
+
+    @Slot(dict)
+    def _on_package_completed(self, result: dict) -> None:
+        self.last_package = result
+        self.server_package.setText(str(result["package_path"]))
+        self._refresh_server_package_summary()
+        self.package_progress.setValue(100)
+        self.package_status.setText(
+            f"Paquete creado: {Path(result['package_path']).name} · "
+            f"{_format_file_size(result['size_bytes'])} · SHA-256 {result['sha256'][:12]}…"
+        )
+        self.package_open_button.setEnabled(True)
+        self.package_copy_button.setEnabled(True)
+        self._update_deployment_enabled()
+        self._refresh_workflow_status()
+        _show_dialog(
+            self,
+            "Paquete listo para el servidor",
+            "La actualización y el archivo SHA-256 se crearon correctamente.\n\n"
+            "Conserve ambos archivos juntos durante la transferencia.",
+            QMessageBox.Icon.Information,
+        )
+
+    @Slot()
+    def stop_packaging(self) -> None:
+        if (
+            self.package_worker is None
+            or self.package_worker_thread is None
+            or not self.package_worker_thread.isRunning()
+        ):
+            return
+        self.package_worker.cancel()
+        self.package_stop_button.setEnabled(False)
+        self.package_status.setText("Deteniendo de forma segura…")
+
+    @Slot()
+    def _on_package_cancelled(self) -> None:
+        self.package_status.setText(
+            "Empaquetado detenido. No se publicaron archivos finales incompletos."
+        )
+
+    @Slot(str)
+    def _on_package_failed(self, detail: str) -> None:
+        last_line = next(
+            (line.strip() for line in reversed(detail.splitlines()) if line.strip()),
+            "Error no identificado",
+        )
+        self.package_status.setText(f"No fue posible crear el paquete: {last_line}")
+        _show_dialog(
+            self,
+            "Empaquetado no completado",
+            "No se generó una actualización publicable. "
+            f"Revise el contenido y vuelva a intentarlo. Detalle: {last_line}",
+            QMessageBox.Icon.Critical,
+        )
+
+    @Slot()
+    def _on_package_finished(self) -> None:
+        self.package_worker_thread = None
+        self.package_worker = None
+        self.package_stop_button.setEnabled(False)
+        self._update_process_enabled()
+        self._update_gallery_enabled()
+        self._update_package_enabled()
+        self._update_deployment_enabled()
+        if self.last_package:
+            self.package_open_button.setEnabled(True)
+            self.package_copy_button.setEnabled(True)
+
+    @Slot()
+    def open_package_folder(self) -> None:
+        if self.last_package:
+            os.startfile(Path(self.last_package["package_path"]).parent)  # type: ignore[attr-defined]
+
+    @Slot()
+    def copy_package_summary(self) -> None:
+        if not self.last_package:
+            return
+        result = self.last_package
+        summary = (
+            f"Release: {result['release_id']}\n"
+            f"Fecha de corte: {result['cutoff_date']}\n"
+            f"Datasets: {result['dataset_count']}\n"
+            f"Imágenes: {result['favorite_count']}\n"
+            f"Incluye spatial: {'Sí' if result['include_spatial'] else 'No'}\n"
+            f"Paquete: {result['package_path']}\n"
+            f"SHA-256: {result['sha256']}"
+        )
+        QApplication.clipboard().setText(summary)
+        self.package_status.setText("Resumen copiado al portapapeles.")
+
+    def _audit_dir(self) -> Path:
+        return self.root_path / "internal_deployment" / "logs"
+
+    def _server_identity_key(self) -> str:
+        endpoint = f"{self.server_host.text().strip().casefold()}:{self.server_port.text().strip()}"
+        digest = hashlib.sha256(endpoint.encode("utf-8")).hexdigest()[:20]
+        return f"server_identities/{digest}"
+
+    def _stored_server_fingerprint(self) -> str:
+        if not self.server_host.text().strip() or not self.server_port.text().strip():
+            return ""
+        return str(self.settings.value(self._server_identity_key(), ""))
+
+    def _store_server_fingerprint(self, fingerprint: str) -> None:
+        self.settings.setValue(self._server_identity_key(), fingerprint)
+
+    @Slot()
+    def _refresh_server_identity_status(self) -> None:
+        if not hasattr(self, "server_identity_status"):
+            return
+        if self._stored_server_fingerprint():
+            self.server_identity_status.setText(
+                "Identidad SSH registrada para este servidor. Un cambio posterior bloqueará la conexión. "
+                "La contraseña no se guarda."
+            )
+        else:
+            self.server_identity_status.setText(
+                "La identidad SSH se verificará automáticamente en la primera conexión y se recordará en este equipo. "
+                "La contraseña no se guarda."
+            )
+
+    def _server_profile(self, require_fingerprint: bool = True) -> ServerProfile:
+        try:
+            port = int(self.server_port.text().strip())
+        except ValueError as exc:
+            raise ValueError("El puerto SSH debe ser un número entero") from exc
+        profile = ServerProfile(
+            host=self.server_host.text().strip(),
+            port=port,
+            username=self.server_user.text().strip(),
+            fingerprint=self._stored_server_fingerprint(),
+        )
+        profile.validate(require_fingerprint=require_fingerprint)
+        return profile
+
+    def _server_authentication(self) -> Authentication:
+        authentication = Authentication(password=self.server_password.text() or None)
+        authentication.validate()
+        return authentication
+
+    @Slot()
+    def _browse_server_package(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Seleccione el paquete de actualización",
+            self.server_package.text().strip() or self.package_output.text().strip(),
+            "Paquete Red OTUS (*.zip)",
+        )
+        if path:
+            self.server_package.setText(path)
+            self._refresh_server_package_summary()
+
+    @Slot()
+    def _refresh_server_package_summary(self) -> None:
+        if not hasattr(self, "server_package_summary"):
+            return
+        text = self.server_package.text().strip()
+        if not text:
+            self.server_package_summary.setText(
+                "Genere un paquete en la sección 5 o seleccione uno existente con su archivo .sha256."
+            )
+            return
+        try:
+            info = inspect_update_package(Path(text))
+            spatial = "sí" if "spatial" in info.components else "no"
+            self.server_package_summary.setText(
+                f"Release {info.release_id} · corte {info.cutoff_date or 'no informado'} · "
+                f"{info.dataset_count} datasets · {info.favorite_count} imágenes · "
+                f"spatial: {spatial} · {_format_file_size(info.size_bytes)}."
+            )
+        except Exception as exc:
+            self.server_package_summary.setText(f"Paquete pendiente de validación: {exc}")
+
+    @Slot()
+    def _invalidate_server_check(self) -> None:
+        self.server_connection_verified = False
+        if hasattr(self, "server_status") and not (
+            self.deployment_worker_thread and self.deployment_worker_thread.isRunning()
+        ):
+            self.server_status.setText("El perfil cambió. Compruebe nuevamente la conexión.")
+        self._update_deployment_enabled()
+
+    @Slot()
+    def _update_deployment_enabled(self) -> None:
+        if not hasattr(self, "server_check_button"):
+            return
+        running = bool(
+            (self.worker_thread and self.worker_thread.isRunning())
+            or (self.gallery_worker_thread and self.gallery_worker_thread.isRunning())
+            or (self.package_worker_thread and self.package_worker_thread.isRunning())
+            or (self.deployment_worker_thread and self.deployment_worker_thread.isRunning())
+        )
+        endpoint_ready = bool(
+            self.server_host.text().strip()
+            and self.server_port.text().strip()
+            and self.server_user.text().strip()
+        )
+        auth_ready = bool(self.server_password.text())
+        package_ready = bool(self.server_package.text().strip())
+        self.server_check_button.setEnabled(
+            endpoint_ready and auth_ready and not running
+        )
+        self.server_deploy_button.setEnabled(
+            self.server_connection_verified and package_ready and not running
+        )
+        self.server_rollback_button.setEnabled(self.server_connection_verified and not running)
+        self.server_stop_button.setEnabled(
+            bool(self.deployment_worker_thread and self.deployment_worker_thread.isRunning())
+        )
+        for widget in (
+            self.server_host,
+            self.server_port,
+            self.server_user,
+            self.server_password,
+            self.server_package,
+            self.server_package_browse,
+        ):
+            widget.setEnabled(not running)
+
+    def _save_server_profile(self, profile: ServerProfile) -> None:
+        self.settings.setValue("server_host", profile.host)
+        self.settings.setValue("server_port", str(profile.port))
+        self.settings.setValue("server_user", profile.username)
+        if self.server_package.text().strip():
+            self.settings.setValue("server_last_package", self.server_package.text().strip())
+
+    @Slot(str)
+    def start_server_operation(self, action: str) -> None:
+        if self.deployment_worker_thread and self.deployment_worker_thread.isRunning():
+            return
+        try:
+            profile = self._server_profile(require_fingerprint=False)
+            if action == "check" and not profile.fingerprint:
+                action = "fingerprint"
+            elif action != "fingerprint" and not profile.fingerprint:
+                raise ValueError("Compruebe la conexión antes de continuar")
+            authentication = None if action == "fingerprint" else self._server_authentication()
+            package_path: Path | None = None
+            if action == "deploy":
+                if not self.server_connection_verified:
+                    raise ValueError("Compruebe nuevamente la conexión antes de publicar")
+                package_path = Path(self.server_package.text().strip()).expanduser().resolve()
+                info = inspect_update_package(package_path)
+                current_release = (
+                    (self.last_server_result or {}).get("active_release")
+                    or (self.last_server_result or {}).get("release_id")
+                    or "no identificada"
+                )
+                current_activated_at = (
+                    (self.last_server_result or {}).get("active_release_activated_at")
+                    or (self.last_server_result or {}).get("release_activated_at")
+                )
+                confirmation = _show_dialog(
+                    self,
+                    "Confirmar actualización",
+                    f"Release activa: {current_release}\n"
+                    f"Activada: {_format_server_datetime(current_activated_at)}\n\n"
+                    f"Nueva release: {info.release_id}\n"
+                    f"Corte de datos: {info.cutoff_date or 'no informado'}\n"
+                    f"Contenido: {info.dataset_count} datasets y {info.favorite_count} imágenes.\n\n"
+                    "La versión actual se conservará para una posible reversión. ¿Desea continuar?",
+                    QMessageBox.Icon.Question,
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.No,
+                )
+                if confirmation != QMessageBox.StandardButton.Yes:
+                    return
+            elif action == "rollback":
+                if not self.server_connection_verified:
+                    raise ValueError("Compruebe nuevamente la conexión antes de revertir")
+                current_release = (
+                    (self.last_server_result or {}).get("active_release")
+                    or (self.last_server_result or {}).get("release_id")
+                    or "no identificada"
+                )
+                current_activated_at = (
+                    (self.last_server_result or {}).get("active_release_activated_at")
+                    or (self.last_server_result or {}).get("release_activated_at")
+                )
+                confirmation = _show_dialog(
+                    self,
+                    "Confirmar reversión",
+                    f"Release activa: {current_release}\n"
+                    f"Activada: {_format_server_datetime(current_activated_at)}\n\n"
+                    "Se restaurará la release anterior y se reiniciará el servicio. "
+                    "Utilice esta opción únicamente cuando deba retirar la versión activa.\n\n"
+                    "¿Desea continuar?",
+                    QMessageBox.Icon.Warning,
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.No,
+                )
+                if confirmation != QMessageBox.StandardButton.Yes:
+                    return
+            self._save_server_profile(profile)
+        except Exception as exc:
+            _show_dialog(self, "Publicación en servidor", str(exc), QMessageBox.Icon.Warning)
+            return
+
+        self.server_current_action = action
+        self.server_progress.setValue(0)
+        self.server_log.clear()
+        labels = {
+            "fingerprint": "Consultando identidad SSH…",
+            "check": "Comprobando el entorno remoto…",
+            "deploy": "Preparando la publicación institucional…",
+            "rollback": "Preparando la reversión…",
+        }
+        self.server_status.setText(labels[action])
+        self.deployment_worker_thread = QThread(self)
+        self.deployment_worker = DeploymentWorker(
+            action,
+            profile,
+            authentication,
+            package_path,
+            self._audit_dir(),
+        )
+        self.deployment_worker.moveToThread(self.deployment_worker_thread)
+        self.deployment_worker_thread.started.connect(self.deployment_worker.run)
+        self.deployment_worker.progress.connect(self._on_server_progress)
+        self.deployment_worker.log.connect(self.server_log.appendPlainText)
+        self.deployment_worker.completed.connect(self._on_server_completed)
+        self.deployment_worker.cancelled.connect(self._on_server_cancelled)
+        self.deployment_worker.failed.connect(self._on_server_failed)
+        self.deployment_worker.finished.connect(self.deployment_worker_thread.quit)
+        self.deployment_worker.finished.connect(self.deployment_worker.deleteLater)
+        self.deployment_worker_thread.finished.connect(self.deployment_worker_thread.deleteLater)
+        self.deployment_worker_thread.finished.connect(self._on_server_finished)
+        self.deployment_worker_thread.start()
+        self._update_process_enabled()
+        self._update_gallery_enabled()
+        self._update_package_enabled()
+        self._update_deployment_enabled()
+
+    @Slot(int, int, str)
+    def _on_server_progress(self, current: int, total: int, message: str) -> None:
+        self.server_progress.setValue(round(current / total * 100) if total else 0)
+        self.server_status.setText(message)
+
+    @Slot(dict)
+    def _on_server_completed(self, result: dict) -> None:
+        self.last_server_result = result
+        action = result.get("action")
+        if action == "fingerprint":
+            self.pending_server_fingerprint = str(result["fingerprint"])
+            self.server_status.setText("Identidad SSH recibida. Preparando confirmación…")
+        elif action == "check":
+            self.server_connection_verified = True
+            self.server_progress.setValue(100)
+            self.server_status.setText(
+                f"Conexión verificada. Release activa: {result.get('release_id') or 'no identificada'}; "
+                f"activada: {_format_server_datetime(result.get('release_activated_at'))}; "
+                f"Docker: {result.get('docker_status', 'desconocido')}; "
+                f"espacio disponible: {_format_file_size(int(result.get('disk_available_bytes', 0)))}; "
+                f"actualizador: {result.get('updater_meta', 'no identificado')}."
+            )
+        elif action == "deploy":
+            self.server_progress.setValue(100)
+            self.server_status.setText(
+                f"Actualización completada. Anterior: {result['previous_release']} "
+                f"({_format_server_datetime(result.get('previous_release_activated_at'))}). "
+                f"Activa: {result['active_release']} "
+                f"({_format_server_datetime(result.get('active_release_activated_at'))}); "
+                f"HTTP {result['http_status']}. Registro: {result['audit_path']}"
+            )
+        elif action == "rollback":
+            self.server_progress.setValue(100)
+            self.server_status.setText(
+                f"Reversión completada. Retirada: {result['previous_release']} "
+                f"({_format_server_datetime(result.get('previous_release_activated_at'))}). "
+                f"Activa: {result['active_release']} "
+                f"({_format_server_datetime(result.get('active_release_activated_at'))}); "
+                f"HTTP {result['http_status']}. Registro: {result['audit_path']}"
+            )
+        self._refresh_workflow_status()
+
+    @Slot()
+    def stop_server_operation(self) -> None:
+        if self.deployment_worker is not None:
+            self.deployment_worker.cancel()
+            self.server_stop_button.setEnabled(False)
+            self.server_status.setText("Deteniendo de forma segura…")
+
+    @Slot()
+    def _on_server_cancelled(self) -> None:
+        self.pending_server_fingerprint = None
+        self.server_status.setText(
+            "Seguimiento detenido. Si la activación remota ya había comenzado, "
+            "compruebe nuevamente la conexión para confirmar la release activa."
+        )
+
+    @Slot(str)
+    def _on_server_failed(self, detail: str) -> None:
+        self.pending_server_fingerprint = None
+        last_line = next(
+            (line.strip() for line in reversed(detail.splitlines()) if line.strip()),
+            "Error no identificado",
+        )
+        if getattr(self, "server_current_action", "") == "check":
+            self.server_connection_verified = False
+        self.server_status.setText(f"La operación no se completó: {last_line}")
+        _show_dialog(
+            self,
+            "Operación en servidor no completada",
+            "No se confirmó una publicación satisfactoria. "
+            "Revise el detalle técnico y el registro de auditoría antes de reintentar.\n\n"
+            f"Detalle: {last_line}",
+            QMessageBox.Icon.Critical,
+        )
+
+    @Slot()
+    def _on_server_finished(self) -> None:
+        self.deployment_worker_thread = None
+        self.deployment_worker = None
+        self._update_process_enabled()
+        self._update_gallery_enabled()
+        self._update_package_enabled()
+        self._update_deployment_enabled()
+        fingerprint = self.pending_server_fingerprint
+        self.pending_server_fingerprint = None
+        if fingerprint:
+            confirmation = _show_dialog(
+                self,
+                "Confirmar servidor",
+                f"Servidor: {self.server_host.text().strip()}:{self.server_port.text().strip()}\n\n"
+                "La aplicación verificará y recordará la identidad de este servidor para proteger "
+                "las próximas conexiones. ¿Desea continuar?",
+                QMessageBox.Icon.Question,
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if confirmation == QMessageBox.StandardButton.Yes:
+                self._store_server_fingerprint(fingerprint)
+                self._refresh_server_identity_status()
+                self.server_status.setText("Identidad confirmada. Comprobando el entorno remoto…")
+                QTimer.singleShot(0, lambda: self.start_server_operation("check"))
+            else:
+                self.server_status.setText(
+                    "Identidad no confirmada. La conexión permanecerá bloqueada."
+                )
+
+    @Slot()
+    def open_audit_folder(self) -> None:
+        path = self._audit_dir()
         path.mkdir(parents=True, exist_ok=True)
         os.startfile(path)  # type: ignore[attr-defined]
 
@@ -969,8 +1993,12 @@ class PipelineWindow(QMainWindow):
         try:
             config = self._configuration()
         except Exception as exc:
-            QMessageBox.critical(self, "Configuración", str(exc))
+            _show_dialog(self, "Configuración", str(exc), QMessageBox.Icon.Critical)
             return
+        self._invalidate_package_validation()
+        self.package_status.setText(
+            "Los datos están cambiando. Valide nuevamente el contenido cuando finalice."
+        )
         self.last_result = None
         self._execution_requires_reset = True
         self._logged_stages.clear()
@@ -1008,6 +2036,8 @@ class PipelineWindow(QMainWindow):
         self.worker_thread.finished.connect(self._on_worker_finished)
         self.worker_thread.start()
         self._update_process_enabled()
+        self._update_package_enabled()
+        self._update_deployment_enabled()
 
     @Slot()
     def stop_processing(self) -> None:
@@ -1069,6 +2099,10 @@ class PipelineWindow(QMainWindow):
         self.open_report_button.setEnabled(Path(result["quality_report_path"]).is_file())
         self._render_result(result)
         self._set_result_tabs_enabled(True)
+        self.package_status.setText(
+            "Datos publicados correctamente. Revise el dashboard en local y luego valide el paquete."
+        )
+        self._refresh_workflow_status()
 
     @Slot()
     def _on_cancelled(self) -> None:
@@ -1091,7 +2125,7 @@ class PipelineWindow(QMainWindow):
                 "No fue posible completar la ejecución. La publicación anterior se conservó sin cambios. "
                 "Revise el último mensaje en 'Estado del procesamiento' antes de intentarlo nuevamente."
             )
-        QMessageBox.critical(self, "Procesamiento no completado", message)
+        _show_dialog(self, "Procesamiento no completado", message, QMessageBox.Icon.Critical)
 
     @Slot()
     def _on_worker_finished(self) -> None:
@@ -1104,6 +2138,8 @@ class PipelineWindow(QMainWindow):
         self.gallery_card.setEnabled(True)
         self._update_gallery_enabled()
         self._update_process_enabled()
+        self._update_package_enabled()
+        self._update_deployment_enabled()
 
     def _set_result_tabs_enabled(self, enabled: bool) -> None:
         for index in range(1, self.tabs.count()):
@@ -1190,21 +2226,43 @@ class PipelineWindow(QMainWindow):
     def closeEvent(self, event: QCloseEvent) -> None:
         """Evita cerrar la ventana mientras exista una tarea activa."""
         if self.worker_thread and self.worker_thread.isRunning():
-            QMessageBox.information(
+            _show_dialog(
                 self,
                 "Procesamiento en curso",
                 "Espere a que finalice el procesamiento o utilice 'Detener procesamiento' antes de cerrar la aplicación.",
+                QMessageBox.Icon.Information,
             )
             event.ignore()
             return
         if self.gallery_worker_thread and self.gallery_worker_thread.isRunning():
-            QMessageBox.information(
+            _show_dialog(
                 self,
                 "Preparación de imágenes en curso",
                 "Espere a que termine la optimización de la galería antes de cerrar la aplicación.",
+                QMessageBox.Icon.Information,
             )
             event.ignore()
             return
+        if self.package_worker_thread and self.package_worker_thread.isRunning():
+            _show_dialog(
+                self,
+                "Empaquetado en curso",
+                "Espere a que termine la preparación o utilice 'Detener empaquetado' antes de cerrar la aplicación.",
+                QMessageBox.Icon.Information,
+            )
+            event.ignore()
+            return
+        if self.deployment_worker_thread and self.deployment_worker_thread.isRunning():
+            _show_dialog(
+                self,
+                "Operación remota en curso",
+                "Espere a que termine la operación o utilice 'Detener operación' antes de cerrar la aplicación.",
+                QMessageBox.Icon.Information,
+            )
+            event.ignore()
+            return
+        if hasattr(self, "server_password"):
+            self.server_password.clear()
         event.accept()
 
 

@@ -23,6 +23,7 @@ from . import __version__
 from .config import PipelineConfig
 from .quality import QualityLog
 from .reports import project_summary, write_quality_html
+from .validation import validate_release
 
 Progress = Callable[[str, float, str], None]
 ALL = "ALL"
@@ -679,6 +680,8 @@ def run_pipeline(config: PipelineConfig, progress: Progress | None = None) -> di
     reports_staging = reports_path.parent / f".{reports_path.name}.staging-{run_id}"
     staging.mkdir(parents=False, exist_ok=False)
     reports_staging.mkdir(parents=False, exist_ok=False)
+    (staging / ".gitkeep").write_text("\n", encoding="utf-8")
+    (reports_staging / ".gitkeep").write_text("\n", encoding="utf-8")
     try:
         # Los reportes de galería pertenecen a una operación independiente de
         # la publicación analítica. Se conservan cuando existe una nueva
@@ -775,6 +778,12 @@ def run_pipeline(config: PipelineConfig, progress: Progress | None = None) -> di
             ],
         }
         (staging / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+        release_validation = validate_release(staging)
+        if release_validation["status"] != "passed":
+            raise ValueError(
+                "La publicación escrita no superó la validación final: "
+                + "; ".join(release_validation["failures"])
+            )
         progress("publish", 0.99, "Activando la nueva publicación")
         backup = config.output_path.parent / f".{config.output_path.name}.previous-{run_id}"
         reports_backup = reports_path.parent / f".{reports_path.name}.previous-{run_id}"

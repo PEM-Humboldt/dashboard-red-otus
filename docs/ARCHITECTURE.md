@@ -36,11 +36,12 @@ dashboard-red-otus/
 │   │   ├── gallery.py
 │   │   ├── gui.py
 │   │   ├── input_inspection.py
+│   │   ├── packaging.py
+│   │   ├── deployment.py
 │   │   ├── quality.py
 │   │   ├── reports.py
 │   │   └── validation.py
 │   ├── tests/
-│   ├── launch_gui.bat
 │   ├── run_gui.py
 │   ├── run_cli.py
 │   ├── pyproject.toml
@@ -88,6 +89,13 @@ Normalización y control de calidad
                     ▼
              Dashboard R Shiny
 ```
+
+Cuando la publicación local ha sido revisada, la GUI construye un paquete de
+actualización con manifiesto y huellas SHA-256. El cliente de despliegue lo
+transfiere por SSH al servidor autorizado, donde un actualizador institucional
+valida, activa y conserva la release anterior para recuperación. Los scripts y
+la configuración particulares del servidor se mantienen fuera del repositorio
+público.
 
 ## 4. Capas de información
 
@@ -145,7 +153,9 @@ dashboard y mantiene la trazabilidad disponible para la GUI y la revisión local
 | `reports.py` | Genera resúmenes y el reporte HTML. |
 | `validation.py` | Comprueba integridad, relaciones, rangos y cobertura. |
 | `gui.py` | Presenta el flujo operativo mediante PySide6. |
-| `cli.py` | Permite automatizar el procesamiento por comandos. |
+| `cli.py` | Permite la ejecución no interactiva por comandos. |
+| `packaging.py` | Valida y empaqueta una publicación aprobada. |
+| `deployment.py` | Transfiere y activa paquetes mediante un cliente SSH restringido. |
 
 ## 6. Componentes del dashboard
 

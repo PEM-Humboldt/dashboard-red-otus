@@ -4,10 +4,11 @@ Solución para validar, transformar, analizar y visualizar datos de fototrampeo 
 
 ## Alcance
 
-La solución cubre dos procesos complementarios:
+La solución cubre tres procesos complementarios:
 
 1. **Preparación de datos:** recibe archivos CSV exportados desde Wildlife Insights, controla su calidad y genera productos Parquet optimizados.
 2. **Visualización:** presenta indicadores operativos y de biodiversidad mediante una única aplicación con vistas por proyecto y corporación.
+3. **Actualización institucional:** valida la publicación aprobada y genera desde la GUI un ZIP de insumos con manifiestos y huellas SHA-256, listo para transferir al servidor.
 
 Los cálculos de mayor costo se realizan previamente en Python. R consume productos aprobados y se concentra en filtros, visualizaciones, tablas y descargas.
 
@@ -20,8 +21,10 @@ dashboard-red-otus/
 │   ├── input/raw/         CSV descargados de Wildlife Insights
 │   ├── input/spatial/     Límites geográficos para asignación espacial
 │   ├── red_otus_pipeline/ Código fuente del procesamiento
+│   │   ├── packaging.py   Validación y empaquetado de actualizaciones
+│   │   └── deployment.py  Cliente de publicación controlada por SSH
 │   ├── tests/             Pruebas automatizadas de reglas y publicación
-│   ├── launch_gui.bat     Inicio recomendado para usuarios de Windows
+│   ├── run_gui.py         Inicio portable de la interfaz gráfica
 │   └── validate_release.py Validación independiente de la publicación
 ├── processing_reports/    Informes locales de calidad y operación
 └── dashboard/             Aplicación R Shiny
@@ -55,9 +58,11 @@ dashboard-red-otus/
    `dashboard/www/images/favorites/`. La carpeta `General` alimenta las vistas
    globales y cada carpeta nombrada con un `project_id` alimenta ese proyecto y
    su corporación.
-6. Ejecute `processing/launch_gui.bat`.
+6. Ejecute `python processing/run_gui.py`.
 7. Valide la entrada, configure el alcance y publique los datos.
-8. Abra `dashboard/app.R` en RStudio y seleccione **Run App**.
+8. Abra `dashboard/app.R` en RStudio, seleccione **Run App** y revise los datos, filtros, imágenes, mapas y descargas.
+9. En la sección **Preparación de la actualización para el servidor**, valide el contenido, confirme la revisión local y genere el ZIP junto con su archivo `.sha256`. Los polígonos espaciales solo se incluyen cuando la opción correspondiente se selecciona expresamente.
+10. Cuando exista una ventana institucional autorizada, use **Comprobar conexión** y luego **Transferir y activar actualización**. La GUI valida la identidad del servidor, publica el paquete y confirma la release activa y la respuesta HTTP. La reversión queda disponible como medida de recuperación.
 
 Para preparar R por primera vez:
 
@@ -66,6 +71,12 @@ Rscript -e "renv::restore(project='dashboard', prompt=FALSE)"
 ```
 
 La publicación es transaccional: una ejecución incompleta no reemplaza los datos aprobados previamente.
+
+La actualización de insumos es una operación manual y controlada, prevista
+aproximadamente entre dos y cinco veces al año. El responsable inicia la GUI,
+revisa el reporte de calidad y valida el dashboard antes de preparar o publicar
+un paquete institucional. No existe una tarea calendarizada que procese o
+despliegue datos sin intervención.
 
 ## Flujo de actualización segura
 
@@ -79,6 +90,27 @@ ejecución o se presenta un error, la publicación anterior continúa disponible
 Cada publicación aprobada registra en `manifest.json` sus conteos, parámetros,
 tiempos, versiones y huellas SHA-256. Estas cifras dependen de los insumos y no
 se fijan en la documentación pública.
+
+## Empaquetado para el servidor institucional
+
+El empaquetado es una decisión manual posterior a la validación local, no una
+consecuencia automática de terminar el procesamiento. La GUI comprueba el
+manifiesto aprobado de datos, los hashes de los Parquet y el manifiesto de la
+galería antes de habilitar la creación. El resultado contiene `data/`,
+`favorites/`, `spatial/` cuando se solicita, `RELEASE.json` y `FILES.sha256`.
+También se genera un archivo `.zip.sha256` para comprobar la transferencia.
+
+Los paquetes se guardan por defecto en `internal_deployment/packages/`, dentro
+de la copia institucional del proyecto pero excluidos de Git. La última carpeta
+seleccionada queda recordada para las siguientes ejecuciones. No se incluyen
+archivos RAW, informes de calidad, código fuente ni imágenes Docker.
+
+La publicación semiautomática utiliza servidor, puerto, usuario y contraseña.
+En la primera conexión registra localmente la identidad SSH observada y bloquea
+cambios posteriores; la contraseña solo permanece en memoria durante la
+operación. Los scripts de administración y los datos particulares de la
+infraestructura institucional se distribuyen por canales internos autorizados y
+no forman parte del repositorio público.
 
 ## Despliegue en Posit Connect
 

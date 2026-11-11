@@ -249,6 +249,8 @@ class PublicationTests(unittest.TestCase):
             self.assertFalse((output / "quality_report.html").exists())
             self.assertFalse((output / "quality_issues.csv").exists())
             self.assertFalse((output / "releases").exists())
+            self.assertTrue((output / ".gitkeep").is_file())
+            self.assertTrue((reports / ".gitkeep").is_file())
             self.assertEqual(result["dashboard_title"], "Iniciativa de prueba")
             self.assertEqual(result["occasion_window_days"], 7)
             self.assertEqual(projects.loc[0, "Corporacion"], "CORPORACIÓN DE PRUEBA")
