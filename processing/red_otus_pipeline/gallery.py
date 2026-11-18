@@ -115,6 +115,80 @@ def _discover_images(source_root: Path) -> list[Path]:
     return images
 
 
+def summarize_gallery_projects(result: dict, projects: list[dict] | None = None) -> list[dict]:
+    """Agrupa el resultado por proyecto para una revisión operativa de la galería."""
+    catalog = {
+        str(item.get("project_id", "")).strip(): item
+        for item in (projects or [])
+        if str(item.get("project_id", "")).strip()
+    }
+    grouped: dict[str, dict] = {}
+    for item in result.get("files", []):
+        source = str(item.get("source", "")).replace("\\", "/")
+        folder, _, filename = source.partition("/")
+        if not folder:
+            folder = "Sin carpeta"
+        aggregate = grouped.setdefault(
+            folder,
+            {"images": 0, "optimized": 0, "reused": 0, "errors": []},
+        )
+        aggregate["images"] += 1
+        status = str(item.get("status", ""))
+        if status == "Optimizada":
+            aggregate["optimized"] += 1
+        elif status == "Sin cambios":
+            aggregate["reused"] += 1
+        elif status == "Error":
+            message = str(item.get("message", "Error no especificado")).strip()
+            aggregate["errors"].append(f"{filename or source}: {message}")
+
+    rows: list[dict] = []
+    project_ids = set(catalog).union(
+        folder for folder in grouped if folder.casefold() != "general"
+    )
+    for project_id in sorted(project_ids):
+        project = catalog.get(project_id, {})
+        aggregate = grouped.get(
+            project_id,
+            {"images": 0, "optimized": 0, "reused": 0, "errors": []},
+        )
+        errors = list(aggregate["errors"])
+        if errors:
+            observation = "; ".join(errors)
+        elif not aggregate["images"]:
+            observation = "Sin imágenes disponibles para la galería."
+        elif project_id not in catalog:
+            observation = "La carpeta no coincide con un proyecto del catálogo validado."
+        else:
+            observation = "Sin novedades."
+        rows.append({
+            "project_id": project_id,
+            "project_name": str(project.get("project_name", "Proyecto no identificado")),
+            "corporation": str(project.get("corporation", "Sin asignación")),
+            "images": int(aggregate["images"]),
+            "optimized": int(aggregate["optimized"]),
+            "reused": int(aggregate["reused"]),
+            "errors": len(errors),
+            "observations": observation,
+        })
+
+    if "General" in grouped or "general" in {name.casefold() for name in grouped}:
+        general_key = next(name for name in grouped if name.casefold() == "general")
+        aggregate = grouped[general_key]
+        errors = list(aggregate["errors"])
+        rows.insert(0, {
+            "project_id": "General",
+            "project_name": "Vistas consolidadas",
+            "corporation": "Todas las corporaciones",
+            "images": int(aggregate["images"]),
+            "optimized": int(aggregate["optimized"]),
+            "reused": int(aggregate["reused"]),
+            "errors": len(errors),
+            "observations": "; ".join(errors) if errors else "Sin novedades.",
+        })
+    return rows
+
+
 def _has_transparency(image: Image.Image) -> bool:
     return image.mode in {"RGBA", "LA"} or (
         image.mode == "P" and "transparency" in image.info
@@ -269,7 +343,7 @@ def optimize_gallery(
                     "width": previous.get("width", ""),
                     "height": previous.get("height", ""),
                     "format": previous.get("format", ""),
-                    "message": "Se reutilizó la copia optimizada de la publicación anterior.",
+                    "message": "Sin cambios, porque la copia ya estaba optimizada en la publicación anterior.",
                 }
             else:
                 try:

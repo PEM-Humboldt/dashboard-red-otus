@@ -10,10 +10,37 @@ from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from red_otus_pipeline.gallery import GalleryCancelled, GalleryConfig, optimize_gallery
+from red_otus_pipeline.gallery import (
+    GalleryCancelled,
+    GalleryConfig,
+    optimize_gallery,
+    summarize_gallery_projects,
+)
 
 
 class GalleryOptimizationTests(unittest.TestCase):
+    def test_project_summary_distinguishes_missing_images_and_file_errors(self) -> None:
+        result = {
+            "files": [
+                {"source": "General/view.jpg", "status": "Optimizada", "message": ""},
+                {"source": "1/ok.jpg", "status": "Sin cambios", "message": ""},
+                {"source": "1/broken.jpg", "status": "Error", "message": "archivo dañado"},
+            ]
+        }
+        rows = summarize_gallery_projects(
+            result,
+            [
+                {"project_id": "1", "project_name": "Proyecto uno", "corporation": "CAR A"},
+                {"project_id": "2", "project_name": "Proyecto dos", "corporation": "CAR B"},
+            ],
+        )
+        by_id = {row["project_id"]: row for row in rows}
+        self.assertEqual(by_id["General"]["images"], 1)
+        self.assertEqual(by_id["1"]["errors"], 1)
+        self.assertIn("broken.jpg: archivo dañado", by_id["1"]["observations"])
+        self.assertEqual(by_id["2"]["images"], 0)
+        self.assertIn("Sin imágenes disponibles", by_id["2"]["observations"])
+
     def test_optimizes_images_preserves_structure_and_skips_unchanged_files(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

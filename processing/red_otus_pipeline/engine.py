@@ -22,7 +22,7 @@ import psutil
 from . import __version__
 from .config import PipelineConfig
 from .quality import QualityLog
-from .reports import project_summary, write_quality_html
+from .reports import excluded_project_summary, project_summary, write_quality_html
 from .validation import validate_release
 
 Progress = Callable[[str, float, str], None]
@@ -609,11 +609,11 @@ def _validate_products(silver: dict[str, pd.DataFrame], gold: dict[str, pd.DataF
         if missing:
             raise ValueError(f"Contrato inválido en {name}: faltan {sorted(missing)}")
     if silver["fact_observation"].empty:
-        raise ValueError("No quedaron observaciones válidas después del control de calidad")
+        raise ValueError("No quedaron registros válidos después del control de calidad")
     deployment_keys = set(silver["dim_deployment"]["deployment_key"].dropna())
     observation_keys = set(silver["fact_observation"]["deployment_key"].dropna())
     if not observation_keys.issubset(deployment_keys):
-        raise ValueError("Integridad referencial inválida: hay observaciones sin deployment Silver")
+        raise ValueError("Integridad referencial inválida: hay registros sin deployment Silver")
     metrics = gold["species_metrics"]
     for column in ("occupancy", "frequency", "diurnality"):
         valid = metrics[column].dropna().between(0, 1)
@@ -627,13 +627,13 @@ def _validate_products(silver: dict[str, pd.DataFrame], gold: dict[str, pd.DataF
     if indicator_intervals != allowed_intervals:
         raise ValueError("Los indicadores no contienen los mismos intervalos que las métricas de especies")
     if (indicators["independent_records"] > indicators["images"]).any():
-        raise ValueError("Los registros independientes no pueden superar las observaciones incluidas")
+        raise ValueError("Los registros independientes no pueden superar los registros incluidos")
     indicator_key = ["scope_type", "scope_id", "event_id", "interval_minutes"]
     if indicators.duplicated(indicator_key).any():
         raise ValueError("Los indicadores contienen filas duplicadas por alcance, evento e intervalo")
     unfiltered = indicators["interval_minutes"].eq(0)
     if not indicators.loc[unfiltered, "independent_records"].eq(indicators.loc[unfiltered, "images"]).all():
-        raise ValueError("El intervalo sin filtro debe conservar todas las observaciones")
+        raise ValueError("El intervalo sin filtro debe conservar todos los registros")
     ordered_indicators = indicators.sort_values(
         ["scope_type", "scope_id", "event_id", "interval_minutes"]
     )
@@ -726,6 +726,19 @@ def run_pipeline(config: PipelineConfig, progress: Progress | None = None) -> di
 
         summary = project_summary(silver["fact_observation"], silver["dim_deployment"], silver["dim_project"])
         summary.to_csv(reports_staging / "project_summary.csv", index=False, sep=";", encoding="utf-8-sig")
+        excluded_summary = excluded_project_summary(
+            projects,
+            deployments,
+            images,
+            silver["fact_observation"],
+            issues,
+        )
+        excluded_summary.to_csv(
+            reports_staging / "excluded_project_summary.csv",
+            index=False,
+            sep=";",
+            encoding="utf-8-sig",
+        )
 
         source_files = sorted([
             config.raw_path / "projects.csv",
@@ -755,6 +768,11 @@ def run_pipeline(config: PipelineConfig, progress: Progress | None = None) -> di
             "gold_counts": {name: len(frame) for name, frame in gold.items()},
             "quality": quality.counts(),
             "quality_overview": quality_overview,
+            "project_outcome": {
+                "input": int(len(projects)),
+                "published": int(silver["dim_project"]["project_id"].nunique()),
+                "excluded": int(len(excluded_summary)),
+            },
             "quality_gate": {
                 "status": "passed",
                 "blocking_contract_errors": 0,
@@ -834,4 +852,5 @@ def run_pipeline(config: PipelineConfig, progress: Progress | None = None) -> di
         "quality_report_json_path": str(reports_path / "quality_report.json"),
         "quality_detail_path": str(reports_path / "quality_issues.csv"),
         "project_summary": summary.to_dict(orient="records"),
+        "excluded_project_summary": excluded_summary.to_dict(orient="records"),
     }

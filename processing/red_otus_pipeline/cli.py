@@ -60,7 +60,7 @@ def main() -> None:
         "\nPublicación completada"
         f"\n  run_id: {result['run_id']}"
         f"\n  duración: {result['elapsed_seconds']:.3f} s"
-        f"\n  observaciones Silver: {result['silver_counts']['fact_observation']}"
+        f"\n  registros Silver: {result['silver_counts']['fact_observation']}"
         f"\n  tipos de situación de calidad: {overview['situation_types']}"
         f"\n  registros afectados: {overview['affected_records']}"
         f"\n  datos del dashboard: {config.output_path}"

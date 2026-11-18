@@ -11,6 +11,7 @@ import webbrowser
 from datetime import date, datetime
 from pathlib import Path
 
+import pandas as pd
 from PySide6.QtCore import QDate, QObject, QSettings, Qt, QThread, QTimer, Signal, Slot
 from PySide6.QtGui import QCloseEvent, QIcon
 from PySide6.QtWidgets import (
@@ -33,7 +34,7 @@ from .deployment import (
     write_audit_record,
 )
 from .engine import run_pipeline
-from .gallery import GalleryCancelled, GalleryConfig, optimize_gallery
+from .gallery import GalleryCancelled, GalleryConfig, optimize_gallery, summarize_gallery_projects
 from .input_inspection import InputInspection, inspect_input
 from .packaging import (
     PackageCancelled,
@@ -248,15 +249,20 @@ class ProjectSelectionDialog(QDialog):
 
 
 class GallerySummaryDialog(QDialog):
-    """Presenta el resultado de la galería en un diseño compacto."""
+    """Presenta el balance general y el resultado de cada carpeta de galería."""
 
-    def __init__(self, summary: dict, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        result: dict,
+        projects: list[dict] | None = None,
+        parent: QWidget | None = None,
+    ) -> None:
         super().__init__(parent)
+        summary = result["summary"]
         published = bool(summary.get("published"))
         self.setWindowTitle("Galería preparada" if published else "Galería no publicada")
         self.setModal(True)
-        self.setMinimumWidth(470)
-        self.setMaximumWidth(560)
+        self.resize(1180, 680)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 20, 24, 18)
         layout.setSpacing(14)
@@ -274,7 +280,7 @@ class GallerySummaryDialog(QDialog):
         values = (
             ("Imágenes encontradas", _format_integer(summary.get("found", 0))),
             ("Optimizadas", _format_integer(summary.get("processed", 0))),
-            ("Sin cambios", _format_integer(summary.get("skipped", 0))),
+            ("Sin cambios (ya optimizadas)", _format_integer(summary.get("skipped", 0))),
             ("Con error", _format_integer(summary.get("failed", 0))),
             ("Peso de los originales", _format_file_size(summary.get("original_bytes", 0))),
             ("Peso de las copias", _format_file_size(summary.get("optimized_bytes", 0))),
@@ -285,14 +291,78 @@ class GallerySummaryDialog(QDialog):
             grid.addWidget(QLabel(value), row, 1)
         layout.addLayout(grid)
         detail = QLabel(
-            "Consulte processing_reports/gallery_optimization.csv para revisar el detalle por archivo.",
+            "La tabla distingue las fotografías disponibles por proyecto. Si un archivo presenta un error, "
+            "la columna Resultado de revisión muestra su nombre y la causa para facilitar su reemplazo o eliminación. "
+            "El detalle por archivo también queda disponible en processing_reports/gallery_optimization.csv.",
             objectName="hint",
         )
         detail.setWordWrap(True)
         layout.addWidget(detail)
+        project_rows = summarize_gallery_projects(result, projects)
+        self.dashboard_project_ids = {
+            str(project.get("project_id", "")) for project in (projects or [])
+        }
+        filter_row = QHBoxLayout()
+        filter_row.addWidget(QLabel("Mostrar", objectName="fieldLabel"))
+        self.project_filter = QComboBox()
+        self.project_filter.addItems(
+            [
+                "Todos los proyectos",
+                "Proyectos con imágenes",
+                "Proyectos sin imágenes",
+                "Otros contenidos de la galería",
+            ]
+        )
+        filter_row.addWidget(self.project_filter)
+        filter_row.addStretch(1)
+        layout.addLayout(filter_row)
+        self.table = QTableWidget(len(project_rows), 8)
+        self.table.setHorizontalHeaderLabels(
+            ["ID del proyecto", "Proyecto", "Corporación", "Disponibles", "Optimizadas", "Sin cambios", "Con error", "Resultado de revisión"]
+        )
+        self.table.verticalHeader().setVisible(False)
+        self.table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
+        self.table.verticalHeader().setDefaultSectionSize(34)
+        self.table.setAlternatingRowColors(True)
+        self.table.setWordWrap(False)
+        for row, item in enumerate(project_rows):
+            values = (
+                item["project_id"], item["project_name"], item["corporation"],
+                item["images"], item["optimized"], item["reused"], item["errors"], item["observations"],
+            )
+            for column, value in enumerate(values):
+                cell = QTableWidgetItem(str(value))
+                if column == 7:
+                    cell.setToolTip(str(value))
+                self.table.setItem(row, column, cell)
+        for column in (1, 2, 7):
+            self.table.horizontalHeader().setSectionResizeMode(column, QHeaderView.ResizeMode.Stretch)
+        for column, width in ((0, 120), (3, 95), (4, 95), (5, 95), (6, 85)):
+            self.table.horizontalHeader().setSectionResizeMode(column, QHeaderView.ResizeMode.Fixed)
+            self.table.setColumnWidth(column, width)
+        self.project_filter.currentIndexChanged.connect(self._filter_projects)
+        layout.addWidget(self.table, 1)
+        self._filter_projects(0)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
         buttons.accepted.connect(self.accept)
         layout.addWidget(buttons)
+
+    @Slot(int)
+    def _filter_projects(self, index: int) -> None:
+        """Filtra el resumen entre proyectos con y sin fotografías disponibles."""
+        for row in range(self.table.rowCount()):
+            project_id = self.table.item(row, 0).text()
+            image_count = int(self.table.item(row, 3).text() or 0)
+            is_dashboard_project = project_id in self.dashboard_project_ids
+            if index == 0:
+                hidden = not is_dashboard_project
+            elif index == 1:
+                hidden = not is_dashboard_project or image_count == 0
+            elif index == 2:
+                hidden = not is_dashboard_project or image_count > 0
+            else:
+                hidden = is_dashboard_project
+            self.table.setRowHidden(row, hidden)
 
 
 class PipelineWorker(QObject):
@@ -518,6 +588,7 @@ class PipelineWindow(QMainWindow):
         self.deployment_worker_thread: QThread | None = None
         self.deployment_worker: DeploymentWorker | None = None
         self.last_result: dict | None = None
+        self.last_gallery_result: dict | None = None
         self.last_package: dict | None = None
         self.package_validation: dict | None = None
         self.last_server_result: dict | None = None
@@ -638,7 +709,7 @@ class PipelineWindow(QMainWindow):
     def _build_paths_card(self) -> QWidget:
         card, layout = self._card(
             "1. Ubicación y validación de los insumos",
-            "Seleccione la descarga de Wildlife Insights, el límite espacial de las corporaciones y la carpeta donde se publicarán los datos del dashboard.",
+            "En esta sección se ubican y validan los archivos descargados de Wildlife Insights, el límite espacial de las corporaciones y las carpetas de publicación. La validación identifica los proyectos y comprueba que los insumos mínimos estén disponibles antes de procesarlos.",
         )
         grid = QGridLayout()
         grid.setColumnStretch(1, 1)
@@ -654,6 +725,7 @@ class PipelineWindow(QMainWindow):
         row = QHBoxLayout()
         self.validate_button = QPushButton("Validar carpetas y cargar proyectos", objectName="successButton")
         self.validation_status = QLabel("Pendiente de validación", objectName="hint")
+        self.validation_status.setWordWrap(True)
         row.addWidget(self.validate_button)
         row.addWidget(self.validation_status, 1)
         layout.addLayout(row)
@@ -673,7 +745,7 @@ class PipelineWindow(QMainWindow):
     def _build_parameters_card(self) -> QWidget:
         card, layout = self._card(
             "2. Parámetros del procesamiento",
-            "Defina el periodo de análisis, los productos requeridos y los proyectos que harán parte de esta publicación.",
+            "En esta sección se define el periodo de análisis, los intervalos entre registros y los proyectos que se incluirán. También puede aplicarse una reasignación de corporación cuando exista una corrección institucional previamente confirmada.",
         )
         form = QGridLayout()
         form.setColumnStretch(1, 1)
@@ -793,7 +865,7 @@ class PipelineWindow(QMainWindow):
     def _build_gallery_card(self) -> QWidget:
         card, layout = self._card(
             "4. Preparación de imágenes para la galería",
-            "Conserve aquí las fotografías originales de máxima resolución. La herramienta genera copias livianas para el dashboard sin modificar los archivos fuente.",
+            "En esta sección se preparan las fotografías de la galería. Se admiten archivos JPG, JPEG y PNG; la herramienta conserva los originales, corrige la orientación, limita las copias a 1.600 px y optimiza su peso para publicarlas en el dashboard.",
         )
         grid = QGridLayout()
         grid.setColumnStretch(1, 1)
@@ -819,8 +891,8 @@ class PipelineWindow(QMainWindow):
         grid.addWidget(self.gallery_output, 1, 1, 1, 2)
         layout.addLayout(grid)
         guidance = QLabel(
-            "Dentro de la carpeta de originales cree General para las vistas consolidadas y una carpeta con el project_id para cada proyecto. "
-            "Se admiten JPG, JPEG y PNG. Las copias se limitan a 1.600 px y los JPEG se guardan con calidad 82 %.",
+            "Organice los originales en una carpeta General para las vistas consolidadas y en una carpeta nombrada con el project_id para cada proyecto. "
+            "La operación nunca modifica los archivos fuente y solo reemplaza la galería publicada cuando todas las imágenes superan la validación.",
             objectName="hint",
         )
         guidance.setWordWrap(True)
@@ -829,26 +901,30 @@ class PipelineWindow(QMainWindow):
         self.gallery_button = QPushButton("Optimizar y publicar imágenes", objectName="successButton")
         self.gallery_stop_button = QPushButton("Detener optimización", objectName="dangerButton", enabled=False)
         self.gallery_open_button = QPushButton("Abrir carpeta de originales")
+        self.gallery_summary_button = QPushButton("Ver resumen de la galería", enabled=False)
         controls.addWidget(self.gallery_button)
         controls.addWidget(self.gallery_stop_button)
         controls.addWidget(self.gallery_open_button)
+        controls.addWidget(self.gallery_summary_button)
         controls.addStretch(1)
         layout.addLayout(controls)
         self.gallery_progress = QProgressBar(value=0)
         self.gallery_status = QLabel("Agregue o actualice los originales antes de ejecutar esta operación.", objectName="hint")
+        self.gallery_status.setWordWrap(True)
         layout.addWidget(self.gallery_progress)
         layout.addWidget(self.gallery_status)
         self.gallery_source.textChanged.connect(self._update_gallery_enabled)
         self.gallery_button.clicked.connect(self.start_gallery_optimization)
         self.gallery_stop_button.clicked.connect(self.stop_gallery_optimization)
         self.gallery_open_button.clicked.connect(self.open_gallery_source)
+        self.gallery_summary_button.clicked.connect(self.open_gallery_summary)
         self._update_gallery_enabled()
         return card
 
     def _build_execution_card(self) -> QWidget:
         card, layout = self._card(
             "3. Ejecución y control de calidad",
-            "La publicación anterior solo se reemplaza después de completar y validar correctamente la nueva ejecución.",
+            "En esta sección se validan, limpian y transforman los registros para generar los archivos que consume el dashboard. Al finalizar podrá revisar los proyectos incluidos, los proyectos excluidos y el reporte detallado de calidad; la publicación anterior solo se reemplaza si la ejecución termina correctamente.",
         )
         buttons = QHBoxLayout()
         self.process_button = QPushButton("Procesar y publicar datos", objectName="primaryButton")
@@ -868,38 +944,36 @@ class PipelineWindow(QMainWindow):
         self.tabs = ScrollSafeTabWidget()
         self.console = QPlainTextEdit(objectName="console", readOnly=True, minimumHeight=210)
         self.tabs.addTab(self.console, "Estado del procesamiento")
+        self.excluded_projects_table = QTableWidget(0, 8)
+        self.excluded_projects_table.setHorizontalHeaderLabels(
+            [
+                "ID", "Proyecto", "Archivos images", "Registros leídos", "Instalaciones",
+                "Eventos declarados", "Causa de exclusión", "Detalle para revisión",
+            ]
+        )
+        self.excluded_projects_table.verticalHeader().setVisible(False)
+        self.excluded_projects_table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
+        self.excluded_projects_table.verticalHeader().setDefaultSectionSize(54)
+        self.excluded_projects_table.setAlternatingRowColors(True)
+        self.excluded_projects_table.setWordWrap(True)
+        for column in (1, 6, 7):
+            self.excluded_projects_table.horizontalHeader().setSectionResizeMode(column, QHeaderView.ResizeMode.Stretch)
+        for column, width in ((0, 105), (2, 110), (3, 135), (4, 105), (5, 125)):
+            self.excluded_projects_table.horizontalHeader().setSectionResizeMode(column, QHeaderView.ResizeMode.Fixed)
+            self.excluded_projects_table.setColumnWidth(column, width)
+        self.tabs.addTab(self.excluded_projects_table, "Resumen de proyectos excluidos")
         self.project_summary_table = QTableWidget(0, 7)
         self.project_summary_table.setHorizontalHeaderLabels(
-            ["ID", "Proyecto", "Corporación", "Cámaras", "Eventos", "Especies", "Observaciones"]
+            ["ID", "Proyecto", "Corporación", "Cámaras", "Eventos publicados", "Especies", "Registros publicados"]
         )
+        self.project_summary_table.verticalHeader().setVisible(False)
+        self.project_summary_table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
+        self.project_summary_table.verticalHeader().setDefaultSectionSize(36)
+        self.project_summary_table.setAlternatingRowColors(True)
+        self.project_summary_table.setWordWrap(False)
         self.project_summary_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.project_summary_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         self.tabs.addTab(self.project_summary_table, "Resumen por proyecto")
-        quality_page = QWidget()
-        quality_layout = QVBoxLayout(quality_page)
-        quality_layout.setContentsMargins(10, 10, 10, 10)
-        quality_help = QLabel(
-            "Excluido por inconsistencia: el dato no se publicó porque falta información obligatoria o contiene valores incompatibles.  ·  "
-            "Procesado con limitación: el dato se conservó, pero no puede utilizarse en una parte de la visualización.  ·  "
-            "Resuelto automáticamente: el procesamiento aplicó una solución conservadora.  ·  "
-            "Excluido por criterios de análisis: el dato quedó fuera por el periodo seleccionado o por una regla analítica."
-        )
-        quality_help.setWordWrap(True)
-        quality_help.setObjectName("hint")
-        quality_layout.addWidget(quality_help)
-        self.quality_table = QTableWidget(0, 5)
-        self.quality_table.setHorizontalHeaderLabels(
-            ["Estado", "Situación identificada", "Resultado del procesamiento", "Registros afectados", "Recomendación"]
-        )
-        self.quality_table.verticalHeader().setVisible(False)
-        self.quality_table.setWordWrap(True)
-        self.quality_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
-        self.quality_table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
-        for column, width in enumerate((190, 430, 530, 175, 530)):
-            self.quality_table.horizontalHeader().setSectionResizeMode(column, QHeaderView.ResizeMode.Fixed)
-            self.quality_table.setColumnWidth(column, width)
-        quality_layout.addWidget(self.quality_table)
-        self.tabs.addTab(quality_page, "Resumen de calidad de los datos")
         detail_page = QWidget()
         detail_layout = QVBoxLayout(detail_page)
         detail_layout.setContentsMargins(24, 28, 24, 28)
@@ -932,7 +1006,7 @@ class PipelineWindow(QMainWindow):
     def _build_package_card(self) -> QWidget:
         card, layout = self._card(
             "5. Preparación de la actualización para el servidor",
-            "Genere un paquete íntegro solamente después de revisar el dashboard en local. La herramienta valida los datos y las imágenes, calcula sus huellas y no incluye código, archivos RAW ni reportes de trabajo.",
+            "En esta sección se valida el resultado revisado en local y se crea el paquete ZIP que se transferirá al servidor. El paquete incluye los datos y las imágenes publicables, calcula sus huellas de integridad y excluye el código, los archivos RAW y los reportes de trabajo.",
         )
         grid = QGridLayout()
         grid.setColumnStretch(1, 1)
@@ -1017,7 +1091,7 @@ class PipelineWindow(QMainWindow):
     def _build_deployment_card(self) -> QWidget:
         card, layout = self._card(
             "6. Publicación de la actualización en el servidor",
-            "Ingrese los cuatro datos entregados por TI y publique el paquete aprobado. La aplicación verifica la identidad SSH, transfiere los archivos y ejecuta el procedimiento controlado del servidor; el usuario no debe escribir comandos. No modifica Nginx, HTTPS ni el puerto 443.",
+            "En esta sección se comprueba la conexión institucional, se transfiere el paquete aprobado y se activa la nueva versión de los datos. La aplicación verifica la identidad SSH y ejecuta el procedimiento controlado sin que el usuario escriba comandos; no modifica Nginx, HTTPS ni el puerto 443.",
         )
         endpoint = QGroupBox("Datos de conexión suministrados por TI")
         grid = QGridLayout(endpoint)
@@ -1125,6 +1199,7 @@ class PipelineWindow(QMainWindow):
     def _connect_invalidation(self) -> None:
         self.raw_path.textChanged.connect(self.invalidate_input)
         self.shape_path.textChanged.connect(self.invalidate_input)
+        self.gallery_source.textChanged.connect(self.invalidate_input)
         for field in (self.output_path, self.reports_path, self.initiative, self.dashboard_title):
             field.textChanged.connect(self._update_process_enabled)
         self.output_path.textChanged.connect(self._invalidate_package_validation)
@@ -1162,18 +1237,41 @@ class PipelineWindow(QMainWindow):
             raw = Path(self.raw_path.text()).expanduser().resolve()
             shape_text = self.shape_path.text().strip()
             shape = Path(shape_text).expanduser().resolve() if shape_text else None
-            self.inspection = inspect_input(raw, shape)
+            gallery_text = self.gallery_source.text().strip() if hasattr(self, "gallery_source") else ""
+            gallery = Path(gallery_text).expanduser().resolve() if gallery_text else None
+            self.inspection = inspect_input(raw, shape, gallery)
             self.selected_projects = set(self.inspection.projects["project_id"].astype(str))
             self.corporation_overrides.clear()
             self.project_button.setEnabled(True)
             self._populate_override_controls()
             self._update_project_count()
+            project_gallery_images = self.inspection.gallery_image_files - self.inspection.gallery_general_images
             self.validation_status.setText(
-                f"Validación completada: {len(self.inspection.projects)} proyectos y {self.inspection.image_files} archivos de imágenes."
+                f"Validación completada: {_format_integer(len(self.inspection.projects))} proyectos encontrados y "
+                f"{_format_integer(self.inspection.gallery_image_files)} imágenes disponibles para la galería."
             )
             self._log("[VALIDACIÓN] Archivos requeridos disponibles.")
-            self._log(f"[VALIDACIÓN] Proyectos encontrados: {len(self.inspection.projects):,}")
-            self._log(f"[VALIDACIÓN] Archivos images_*.csv: {self.inspection.image_files:,}")
+            self._log("[VALIDACIÓN] INVENTARIO DE INSUMOS")
+            self._log(f"Proyectos identificados en projects.csv: {_format_integer(len(self.inspection.projects))}")
+            for name in ("projects.csv", "deployments.csv", "cameras.csv", "sequences.csv", "images_*.csv"):
+                file_count = self.inspection.raw_file_counts.get(name, 0)
+                record_count = self.inspection.raw_record_counts.get(name, 0)
+                if file_count:
+                    label = "archivo" if file_count == 1 else "archivos"
+                    self._log(
+                        f"{name}: {_format_integer(file_count)} {label}; "
+                        f"{_format_integer(record_count)} registros."
+                    )
+            self._log("[VALIDACIÓN] INVENTARIO DE LA GALERÍA")
+            self._log(
+                f"Fotografías originales: {_format_integer(self.inspection.gallery_image_files)} en total; "
+                f"{_format_integer(project_gallery_images)} asociadas a proyectos y "
+                f"{_format_integer(self.inspection.gallery_general_images)} en la carpeta General."
+            )
+            self._log(
+                f"Proyectos con fotografías: {_format_integer(self.inspection.gallery_projects_with_images)}; "
+                f"proyectos sin fotografías: {_format_integer(self.inspection.gallery_projects_without_images)}."
+            )
             for warning in self.inspection.warnings:
                 self._log(f"[ADVERTENCIA] {warning}")
             self._update_process_enabled()
@@ -1328,6 +1426,8 @@ class PipelineWindow(QMainWindow):
             "La galería está cambiando. Valide nuevamente el contenido cuando finalice."
         )
         self.gallery_progress.setValue(0)
+        self.last_gallery_result = None
+        self.gallery_summary_button.setEnabled(False)
         self.gallery_status.setText("Revisando y optimizando las fotografías…")
         self.gallery_button.setEnabled(False)
         self.gallery_stop_button.setEnabled(True)
@@ -1357,12 +1457,22 @@ class PipelineWindow(QMainWindow):
 
     @Slot(dict)
     def _on_gallery_completed(self, result: dict) -> None:
+        self.last_gallery_result = result
+        self.gallery_summary_button.setEnabled(True)
         summary = result["summary"]
+        projects = self._gallery_project_catalog()
+        project_rows = summarize_gallery_projects(result, projects)
+        dashboard_ids = {str(project["project_id"]) for project in projects}
+        data_rows = [row for row in project_rows if row["project_id"] in dashboard_ids]
+        with_images = sum(1 for row in data_rows if row["images"] > 0)
+        without_images = sum(1 for row in data_rows if row["images"] == 0)
         if summary.get("published"):
             self.gallery_progress.setValue(100)
             self.gallery_status.setText(
-                f"Publicación finalizada: {summary['processed']} optimizadas y "
-                f"{summary['skipped']} reutilizadas. Reducción: {_format_percent(summary['saved_percent'])}."
+                f"Galería publicada para {_format_integer(len(data_rows))} proyectos disponibles en el dashboard: "
+                f"{_format_integer(with_images)} con imágenes y {_format_integer(without_images)} sin imágenes. "
+                f"{_format_integer(summary['processed'])} optimizadas y "
+                f"{_format_integer(summary['skipped'])} sin cambios, porque ya estaban optimizadas."
             )
             self.package_status.setText(
                 "Imágenes publicadas correctamente. Revise el dashboard en local y luego valide el paquete."
@@ -1374,9 +1484,51 @@ class PipelineWindow(QMainWindow):
                 "La versión anterior permanece disponible."
             )
             self.package_status.setText(
-                "La galería nueva no fue publicada. Resuelva sus observaciones antes de validar el paquete."
+                "La galería nueva no fue publicada. Revise los archivos con error antes de validar el paquete."
             )
-        GallerySummaryDialog(summary, self).exec()
+        GallerySummaryDialog(result, projects, self).exec()
+
+    def _gallery_project_catalog(self) -> list[dict]:
+        """Obtiene los proyectos realmente disponibles en la publicación del dashboard."""
+        if self.last_result and self.last_result.get("project_summary"):
+            return [
+                {
+                    "project_id": str(item.get("project_id", "")),
+                    "project_name": str(item.get("proyecto", "Sin nombre")),
+                    "corporation": str(item.get("corporacion", "Sin asignación")),
+                }
+                for item in self.last_result["project_summary"]
+            ]
+        published = Path(self.output_path.text()).expanduser().resolve() / "validated_data" / "dim_project.parquet"
+        if published.is_file():
+            frame = pd.read_parquet(published)
+            short_name = frame.get("project_short_name", pd.Series(index=frame.index, dtype="string"))
+            if "project_name" in frame:
+                short_name = short_name.fillna(frame["project_name"])
+            corporations = frame.get("Corporacion", pd.Series("Sin asignación", index=frame.index))
+            return [
+                {
+                    "project_id": str(project_id),
+                    "project_name": str(project_name) if pd.notna(project_name) else "Sin nombre",
+                    "corporation": str(corporation) if pd.notna(corporation) else "Sin asignación",
+                }
+                for project_id, project_name, corporation in zip(
+                    frame["project_id"], short_name, corporations
+                )
+            ]
+        return (
+            self.inspection.projects.to_dict(orient="records")
+            if self.inspection is not None
+            else []
+        )
+
+    @Slot()
+    def open_gallery_summary(self) -> None:
+        """Vuelve a abrir el resultado detallado de la última optimización."""
+        if self.last_gallery_result is None:
+            return
+        projects = self._gallery_project_catalog()
+        GallerySummaryDialog(self.last_gallery_result, projects, self).exec()
 
     @Slot()
     def stop_gallery_optimization(self) -> None:
@@ -2003,7 +2155,7 @@ class PipelineWindow(QMainWindow):
         self._execution_requires_reset = True
         self._logged_stages.clear()
         self.console.clear()
-        self.quality_table.setRowCount(0)
+        self.excluded_projects_table.setRowCount(0)
         self.project_summary_table.setRowCount(0)
         self.tabs.setCurrentIndex(0)
         self._set_result_tabs_enabled(False)
@@ -2058,7 +2210,7 @@ class PipelineWindow(QMainWindow):
         self.last_result = None
         self._logged_stages.clear()
         self.console.clear()
-        self.quality_table.setRowCount(0)
+        self.excluded_projects_table.setRowCount(0)
         self.project_summary_table.setRowCount(0)
         self.tabs.setCurrentIndex(0)
         self._set_result_tabs_enabled(False)
@@ -2094,7 +2246,12 @@ class PipelineWindow(QMainWindow):
     def _on_completed(self, result: dict) -> None:
         self.last_result = result
         self.progress.setValue(100)
-        self.status.setText("Procesamiento finalizado y datos publicados correctamente.")
+        outcome = result.get("project_outcome", {})
+        self.status.setText(
+            "Procesamiento finalizado: "
+            f"{_format_integer(outcome.get('published', 0))} proyectos disponibles en el dashboard y "
+            f"{_format_integer(outcome.get('excluded', 0))} excluidos."
+        )
         self.open_output_button.setEnabled(True)
         self.open_report_button.setEnabled(Path(result["quality_report_path"]).is_file())
         self._render_result(result)
@@ -2147,54 +2304,76 @@ class PipelineWindow(QMainWindow):
 
     def _render_result(self, result: dict) -> None:
         raw, silver = result.get("raw_counts", {}), result.get("silver_counts", {})
+        outcome = result.get("project_outcome", {})
+        input_projects = int(outcome.get("input", raw.get("projects", 0)))
+        published_projects = int(outcome.get("published", silver.get("dim_project", 0)))
+        excluded_projects = int(outcome.get("excluded", max(0, input_projects - published_projects)))
         observations_read = int(raw.get("images", 0))
         observations_published = int(silver.get("fact_observation", 0))
         observations_not_published = max(0, observations_read - observations_published)
         published_percent = 100 * observations_published / observations_read if observations_read else 0.0
         excluded_percent = 100 - published_percent if observations_read else 0.0
         self._log("")
-        self._log("RESUMEN FINAL")
+        self._log("RESULTADO DEL PROCESAMIENTO")
         self._log(f"Identificador de ejecución: {result['run_id']}")
         self._log(f"Tiempo total: {_format_duration(float(result['elapsed_seconds']))} (hh:mm:ss)")
-        self._log(f"Uso promedio equivalente de CPU: {_format_percent(float(result['cpu_average_percent']))}")
-        self._log(f"Memoria máxima observada: {_format_decimal(float(result['memory_peak_sampled_mb']), 2)} MB")
         self._log("")
-        self._log("BALANCE DE OBSERVACIONES")
-        self._log(f"Observaciones leídas desde los archivos images: {_format_integer(observations_read)}")
+        self._log("BALANCE DE PROYECTOS")
+        self._log(f"Antes: {_format_integer(input_projects)} proyectos identificados en los insumos de Wildlife Insights.")
         self._log(
-            f"Observaciones incluidas en los datos publicados: {_format_integer(observations_published)} "
-            f"({_format_percent(published_percent)})"
+            f"Después: {_format_integer(published_projects)} proyectos disponibles para consultar en el dashboard."
         )
         self._log(
-            f"Observaciones no incluidas por periodo, integridad o criterios analíticos: "
-            f"{_format_integer(observations_not_published)} ({_format_percent(excluded_percent)})"
+            f"Excluidos: {_format_integer(excluded_projects)} proyectos sin registros que superaran "
+            "los controles del periodo, integridad y análisis."
         )
-        report: dict = {}
-        report_path = Path(result["quality_report_json_path"])
-        if report_path.is_file():
-            report = json.loads(report_path.read_text(encoding="utf-8"))
-            user_rules = report.get("rules", [])
-            self.quality_table.setRowCount(len(user_rules))
-            for row, item in enumerate(user_rules):
-                values = (
-                    item.get("status", "Situación no clasificada"),
-                    item.get("description", item.get("title", item.get("rule", ""))),
-                    item.get("result", ""),
-                    _format_integer(item.get("count", 0)),
-                    item.get("recommendation", ""),
+        excluded_summary = result.get("excluded_project_summary", [])
+        if excluded_summary:
+            cause_counts: dict[str, int] = {}
+            for item in excluded_summary:
+                cause = str(item.get("categoria_exclusion", "Sin clasificar"))
+                cause_counts[cause] = cause_counts.get(cause, 0) + 1
+            self._log("Causas generales de los proyectos excluidos:")
+            for cause, count in sorted(cause_counts.items(), key=lambda pair: (-pair[1], pair[0])):
+                self._log(f"- {cause}: {_format_integer(count)} proyecto(s).")
+        self._log("")
+        self._log("BALANCE DE REGISTROS")
+        self._log(f"Registros leídos: {_format_integer(observations_read)}.")
+        self._log(
+            f"Registros publicados: {_format_integer(observations_published)} "
+            f"({_format_percent(published_percent)})."
+        )
+        self._log(
+            f"Registros excluidos: {_format_integer(observations_not_published)} "
+            f"({_format_percent(excluded_percent)})."
+        )
+        self.excluded_projects_table.setRowCount(len(excluded_summary))
+        for row, item in enumerate(excluded_summary):
+            cause = str(item.get("categoria_exclusion", ""))
+            example = str(item.get("ejemplo_exclusion", "")).strip()
+            if example:
+                cause += f"\nEjemplo encontrado: {example}"
+            values = (
+                item.get("project_id", ""), item.get("proyecto", ""), item.get("archivos_images", 0),
+                item.get("registros_leidos", 0), item.get("instalaciones", 0),
+                item.get("eventos_declarados", 0), cause,
+                item.get("detalle_exclusion", ""),
+            )
+            for column, value in enumerate(values):
+                cell = QTableWidgetItem(str(value))
+                cell.setTextAlignment(
+                    Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
                 )
-                for column, value in enumerate(values):
-                    self.quality_table.setItem(row, column, QTableWidgetItem(str(value)))
-            self.quality_table.resizeRowsToContents()
+                if column in (6, 7):
+                    cell.setToolTip(str(value))
+                self.excluded_projects_table.setItem(row, column, cell)
         summary = result.get("project_summary", [])
         self.project_summary_table.setRowCount(len(summary))
         for row, item in enumerate(summary):
-            values = (item.get("project_id", ""), item.get("proyecto", ""), item.get("corporacion", ""), item.get("camaras", 0), item.get("eventos", 0), item.get("especies", 0), item.get("observaciones", 0))
+            values = (item.get("project_id", ""), item.get("proyecto", ""), item.get("corporacion", ""), item.get("camaras", 0), item.get("eventos", 0), item.get("especies", 0), item.get("registros", 0))
             for column, value in enumerate(values):
                 self.project_summary_table.setItem(row, column, QTableWidgetItem(str(value)))
-        self.project_summary_table.resizeRowsToContents()
         self._log("")
-        self._log("RESULTADO")
         self._log("El procesamiento finalizó correctamente y la nueva publicación quedó disponible.")
         self._log(f"Datos publicados para el dashboard: {result['output_path']}")
         self._log(f"Informes del procesamiento: {result['reports_path']}")
@@ -2203,7 +2382,10 @@ class PipelineWindow(QMainWindow):
             f"{len(result.get('gold_counts', {}))} Parquet para el dashboard y manifiesto. "
             "Los reportes de calidad se conservaron fuera del paquete desplegable."
         )
-        self._log("Revise las pestañas 'Resumen por proyecto', 'Resumen de calidad de los datos' y 'Detalle de calidad de los datos'.")
+        self._log(
+            "Revise las pestañas 'Resumen de proyectos excluidos', 'Resumen por proyecto' y "
+            "'Detalle de calidad de los datos'."
+        )
 
     def _log(self, message: str) -> None:
         self.console.appendPlainText(message)

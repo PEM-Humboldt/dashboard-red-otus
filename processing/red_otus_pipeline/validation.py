@@ -41,7 +41,7 @@ def validate_release(output_path: Path) -> dict[str, object]:
     if deployments["deployment_key"].duplicated().any():
         failures.append("dim_deployment contiene claves duplicadas")
     if not set(observations["deployment_key"]).issubset(set(deployments["deployment_key"])):
-        failures.append("Hay observaciones sin deployment")
+        failures.append("Hay registros sin deployment")
     expected_intervals = set(int(value) for value in manifest.get("independence_minutes", []))
     actual_intervals = set(metrics["interval_minutes"].dropna().astype(int))
     if actual_intervals != expected_intervals:
@@ -50,13 +50,13 @@ def validate_release(output_path: Path) -> dict[str, object]:
     if indicator_intervals != expected_intervals:
         failures.append("Los indicadores no contienen todos los intervalos solicitados")
     if (indicators["independent_records"] > indicators["images"]).any():
-        failures.append("Hay indicadores con más registros independientes que observaciones")
+        failures.append("Hay indicadores con más registros independientes que registros incluidos")
     indicator_key = ["scope_type", "scope_id", "event_id", "interval_minutes"]
     if indicators.duplicated(indicator_key).any():
         failures.append("Hay indicadores duplicados por alcance, evento e intervalo")
     unfiltered = indicators["interval_minutes"].eq(0)
     if not indicators.loc[unfiltered, "independent_records"].eq(indicators.loc[unfiltered, "images"]).all():
-        failures.append("El intervalo sin filtro no conserva todas las observaciones")
+        failures.append("El intervalo sin filtro no conserva todos los registros")
     ordered_indicators = indicators.sort_values(
         ["scope_type", "scope_id", "event_id", "interval_minutes"]
     )

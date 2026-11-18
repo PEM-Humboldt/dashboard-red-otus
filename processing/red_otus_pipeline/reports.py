@@ -9,6 +9,8 @@ from typing import Any
 
 import pandas as pd
 
+from .quality import QUALITY_RULES
+
 
 STATUS_CLASS = {
     "Excluido por inconsistencia": "excluded",
@@ -27,9 +29,9 @@ def project_summary(
     deployments: pd.DataFrame,
     projects: pd.DataFrame,
 ) -> pd.DataFrame:
-    """Resume observaciones, eventos, especies y cámaras por proyecto."""
+    """Resume registros, eventos, especies y cámaras por proyecto."""
     observation_stats = observations.groupby("project_id", as_index=False).agg(
-        observaciones=("project_id", "size"), eventos=("subproject_name", "nunique"), especies=("sp_binomial", "nunique")
+        registros=("project_id", "size"), eventos=("subproject_name", "nunique"), especies=("sp_binomial", "nunique")
     )
     deployment_stats = deployments.groupby("project_id", as_index=False).agg(
         camaras=("deployment_key", "nunique"),
@@ -43,9 +45,156 @@ def project_summary(
         preferred_name = preferred_name.fillna(result["project_name"])
     result.insert(1, "proyecto", preferred_name.fillna("Sin nombre"))
     result = result.drop(columns=[column for column in ("project_short_name", "project_name") if column in result])
-    for column in ("observaciones", "eventos", "especies", "camaras"):
+    for column in ("registros", "eventos", "especies", "camaras"):
         result[column] = result[column].fillna(0).astype(int)
-    return result.sort_values(["observaciones", "project_id"], ascending=[False, True]).reset_index(drop=True)
+    return result.sort_values(["registros", "project_id"], ascending=[False, True]).reset_index(drop=True)
+
+
+EXCLUSION_CATEGORIES = {
+    "TIMESTAMP_BEFORE_START": "Fuera del periodo solicitado",
+    "TIMESTAMP_AFTER_END": "Fuera del periodo solicitado",
+    "DEPLOYMENT_OUTSIDE_RANGE": "Fuera del periodo solicitado",
+    "TIMESTAMP_INVALID": "Fechas de captura ausentes o no válidas",
+    "EVENT_YEAR_MISMATCH": "Fechas incompatibles con el evento",
+    "DEPLOYMENT_ORPHAN": "Sin instalación de cámara asociada",
+    "EVENT_NAME_MISSING": "Sin evento de muestreo asignado",
+    "EVENT_CODE_INVALID": "Evento de muestreo con formato no válido",
+    "DEPLOYMENT_PERIOD_REVERSED": "Periodo de instalación no válido",
+    "TAXON_EXCLUDED": "Identificación taxonómica insuficiente",
+}
+
+
+def excluded_project_summary(
+    projects: pd.DataFrame,
+    deployments: pd.DataFrame,
+    images: pd.DataFrame,
+    published_observations: pd.DataFrame,
+    issues: pd.DataFrame,
+) -> pd.DataFrame:
+    """Explica por qué un proyecto de entrada no quedó disponible en el dashboard."""
+    columns = [
+        "project_id", "proyecto", "archivos_images", "registros_leidos",
+        "instalaciones", "eventos_declarados", "categoria_exclusion", "ejemplo_exclusion",
+        "detalle_exclusion",
+    ]
+    project_ids = projects["project_id"].dropna().astype(str).str.strip()
+    published_ids = set(published_observations["project_id"].dropna().astype(str).str.strip())
+    excluded_ids = set(project_ids).difference(published_ids)
+    if not excluded_ids:
+        return pd.DataFrame(columns=columns)
+
+    name_column = next(
+        (name for name in ("project_short_name", "project_name", "name") if name in projects),
+        None,
+    )
+    catalog = projects.drop_duplicates("project_id").copy()
+    catalog["project_id"] = catalog["project_id"].astype(str).str.strip()
+    catalog["proyecto"] = (
+        catalog[name_column].astype("string").fillna("Sin nombre") if name_column else "Sin nombre"
+    )
+    image_stats = images.groupby("project_id", as_index=False).agg(
+        archivos_images=("source_file", "nunique"),
+        registros_leidos=("project_id", "size"),
+    )
+    deployment_stats = deployments.groupby("project_id", as_index=False).agg(
+        instalaciones=("deployment_id", "nunique"),
+        eventos_declarados=("subproject_name", lambda values: values.astype("string").str.strip().replace("", pd.NA).nunique()),
+    )
+
+    locators = []
+    for frame in (projects, deployments, images):
+        required = {"source_file", "source_row", "project_id"}
+        if required.issubset(frame.columns):
+            locators.append(frame[["source_file", "source_row", "project_id"]])
+    if locators and not issues.empty:
+        source_projects = pd.concat(locators, ignore_index=True).drop_duplicates(
+            ["source_file", "source_row"]
+        )
+        issue_projects = issues.merge(source_projects, on=["source_file", "source_row"], how="left")
+        if "original_value" not in issue_projects:
+            issue_projects["original_value"] = ""
+        excluded_rules = {
+            rule for rule, metadata in QUALITY_RULES.items()
+            if str(metadata.get("status", "")).startswith("Excluido")
+        }
+        issue_projects = issue_projects[issue_projects["rule"].isin(excluded_rules)]
+    else:
+        issue_projects = pd.DataFrame(columns=["project_id", "rule"])
+
+    reason_counts: dict[str, list[tuple[str, int, list[str]]]] = {}
+    if not issue_projects.empty:
+        grouped = (
+            issue_projects.dropna(subset=["project_id"])
+            .groupby(["project_id", "rule"])
+            .agg(
+                count=("rule", "size"),
+                examples=(
+                    "original_value",
+                    lambda values: list(dict.fromkeys(
+                        value for value in values.astype("string").fillna("").str.strip().astype(str)
+                        if value and value.casefold() not in {"<na>", "nan", "none"}
+                    ))[:3],
+                ),
+            )
+            .reset_index()
+        )
+        for project_id, frame in grouped.groupby("project_id"):
+            reason_counts[str(project_id)] = [
+                (str(row["rule"]), int(row["count"]), list(row["examples"]))
+                for _, row in frame.sort_values(["count", "rule"], ascending=[False, True]).iterrows()
+            ]
+
+    result = catalog[catalog["project_id"].isin(excluded_ids)][["project_id", "proyecto"]]
+    result = result.merge(image_stats, on="project_id", how="left")
+    result = result.merge(deployment_stats, on="project_id", how="left")
+    for column in ("archivos_images", "registros_leidos", "instalaciones", "eventos_declarados"):
+        result[column] = result[column].fillna(0).astype(int)
+
+    categories: list[str] = []
+    examples: list[str] = []
+    details: list[str] = []
+    for _, row in result.iterrows():
+        project_id = str(row["project_id"])
+        rules = reason_counts.get(project_id, [])
+        if int(row["archivos_images"]) == 0:
+            category = "Sin archivo de registros"
+            example = ""
+            detail = f"No se encontró images_{project_id}.csv para este proyecto."
+        elif int(row["registros_leidos"]) == 0:
+            category = "Archivo de registros vacío"
+            example = ""
+            detail = "El archivo images del proyecto no contiene registros para procesar."
+        elif int(row["instalaciones"]) == 0:
+            category = "Sin instalaciones de cámara"
+            example = ""
+            detail = "No se encontraron instalaciones asociadas en deployments.csv."
+        elif rules:
+            category_values = {
+                EXCLUSION_CATEGORIES.get(rule, "Otras condiciones de calidad")
+                for rule, _, _ in rules
+            }
+            category = next(iter(category_values)) if len(category_values) == 1 else "Varias condiciones de calidad"
+            example = next(
+                (value for _, _, values in rules for value in values),
+                "",
+            )
+            detail = "; ".join(
+                f"{QUALITY_RULES.get(rule, {}).get('title', rule)} ({count:,} registros)".replace(",", ".")
+                for rule, count, _ in rules[:3]
+            )
+            if len(rules) > 3:
+                detail += f"; y {len(rules) - 3} situación(es) adicional(es)"
+        else:
+            category = "Sin registros publicables"
+            example = ""
+            detail = "Los registros no superaron los controles de periodo, integridad o análisis."
+        categories.append(category)
+        examples.append(example)
+        details.append(detail)
+    result["categoria_exclusion"] = categories
+    result["ejemplo_exclusion"] = examples
+    result["detalle_exclusion"] = details
+    return result[columns].sort_values(["categoria_exclusion", "proyecto", "project_id"]).reset_index(drop=True)
 
 
 def _badge(status: str) -> str:
@@ -176,7 +325,7 @@ select,input[type=search]{{padding:8px 10px;border:1px solid #b9cad8;border-radi
 input[type=search]{{width:100%;box-sizing:border-box}} #visibleCount{{flex-basis:100%;font-size:13px}}
 @media(max-width:900px){{.cards{{grid-template-columns:repeat(2,1fr)}}}}
 </style></head><body><header><h1>Reporte de calidad de datos</h1><p>Ejecución {escape(run_id)}</p></header><main>
-<div class="notice"><strong>Cómo interpretar este reporte.</strong> Se registraron <strong>{int(overview.get('affected_records', counts.get('total', 0))):,} hallazgos</strong>, agrupados en <strong>{int(overview.get('situation_types', len(rules))):,} tipos de situación</strong> y asociados a {int(overview.get('affected_source_rows', 0)):,} filas de origen identificables. Una misma fila puede aparecer en más de una situación, por lo que los hallazgos no equivalen necesariamente al número de observaciones únicas. Cada estado indica si el dato fue excluido, se conservó con alguna limitación, se resolvió automáticamente o quedó fuera por un criterio esperado del análisis.</div>
+<div class="notice"><strong>Cómo interpretar este reporte.</strong> Se registraron <strong>{int(overview.get('affected_records', counts.get('total', 0))):,} hallazgos</strong>, agrupados en <strong>{int(overview.get('situation_types', len(rules))):,} tipos de situación</strong> y asociados a {int(overview.get('affected_source_rows', 0)):,} filas de origen identificables. Una misma fila puede aparecer en más de una situación, por lo que los hallazgos no equivalen necesariamente al número de registros únicos. Cada estado indica si el dato fue excluido, se conservó con alguna limitación, se resolvió automáticamente o quedó fuera por un criterio esperado del análisis.</div>
 <div class="cards"><div class="card"><div class="value">{int(overview.get('situation_types', len(rules))):,}</div><div>Tipos de situación</div><div class="card-note">{int(overview.get('affected_records', counts.get('total', 0))):,} hallazgos registrados</div></div>
 {card('Excluido por inconsistencia', 'Situaciones excluidas por inconsistencia')}{card('Procesado con limitación', 'Situaciones procesadas con limitación')}{card('Resuelto automáticamente', 'Situaciones resueltas automáticamente')}{card('Excluido por criterios de análisis', 'Exclusiones por criterios de análisis')}</div>
 <section><h2>Resumen y acciones sugeridas</h2><div class="table-wrap"><table><thead><tr><th>Estado</th><th>Situación</th><th>Registros afectados</th><th>Casos distintos</th><th>Qué significa</th><th>Resultado</th><th>Ejemplos</th><th>Qué puede revisar</th></tr></thead><tbody>{rule_rows}</tbody></table></div></section>

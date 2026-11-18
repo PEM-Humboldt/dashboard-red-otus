@@ -24,12 +24,44 @@ from red_otus_pipeline.gui import (
     _project_root,
     _resources_dir,
 )
+from red_otus_pipeline.input_inspection import inspect_input
 from red_otus_pipeline.quality import QualityLog
-from red_otus_pipeline.reports import write_quality_html
+from red_otus_pipeline.reports import excluded_project_summary, write_quality_html
 from red_otus_pipeline.validation import validate_release
 
 
 class CalculationTests(unittest.TestCase):
+    def test_input_inventory_distinguishes_csv_records_from_gallery_photos(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            raw = root / "raw"
+            gallery = root / "favorites_originals"
+            raw.mkdir()
+            (gallery / "1").mkdir(parents=True)
+            (gallery / "General").mkdir()
+            pd.DataFrame([
+                {"project_id": "1", "project_name": "Uno"},
+                {"project_id": "2", "project_name": "Dos"},
+            ]).to_csv(raw / "projects.csv", index=False)
+            pd.DataFrame([
+                {"project_id": "1", "deployment_id": "A", "subproject_name": "2025_1"},
+            ]).to_csv(raw / "deployments.csv", index=False)
+            pd.DataFrame([
+                {"project_id": "1", "deployment_id": "A", "image_id": "i1"},
+                {"project_id": "1", "deployment_id": "A", "image_id": "i2"},
+            ]).to_csv(raw / "images_1.csv", index=False)
+            from PIL import Image
+            Image.new("RGB", (10, 10), "green").save(gallery / "1" / "project.jpg")
+            Image.new("RGB", (10, 10), "blue").save(gallery / "General" / "general.jpg")
+
+            inspection = inspect_input(raw, None, gallery)
+            self.assertEqual(inspection.image_files, 1)
+            self.assertEqual(inspection.raw_record_counts["images_*.csv"], 2)
+            self.assertEqual(inspection.gallery_image_files, 2)
+            self.assertEqual(inspection.gallery_general_images, 1)
+            self.assertEqual(inspection.gallery_projects_with_images, 1)
+            self.assertEqual(inspection.gallery_projects_without_images, 1)
+
     def test_project_layout_paths_are_resolved_from_source(self) -> None:
         root = _project_root()
         self.assertTrue((root / "processing" / "input" / "raw").is_dir())
@@ -111,7 +143,7 @@ class CalculationTests(unittest.TestCase):
         self.assertEqual(overview["situations_by_status"]["Excluido por inconsistencia"], 1)
         self.assertEqual(overview["situations_by_status"]["Resuelto automáticamente"], 1)
         timestamp_rule = next(item for item in quality.rule_counts() if item["rule"] == "TIMESTAMP_INVALID")
-        self.assertIn("timestamp de la observación está vacío", timestamp_rule["description"])
+        self.assertIn("timestamp del registro está vacío", timestamp_rule["description"])
         self.assertIn("asignarse a un evento", timestamp_rule["result"])
         with tempfile.TemporaryDirectory() as temporary:
             report = Path(temporary) / "quality.html"
@@ -125,6 +157,31 @@ class CalculationTests(unittest.TestCase):
             self.assertIn("images.csv, fila 2", content)
             self.assertIn("badge excluded'>Excluido por inconsistencia", content)
             self.assertIn("badge resolved", content)
+
+    def test_excluded_project_summary_reports_general_cause_and_affected_records(self) -> None:
+        projects = pd.DataFrame([
+            {"project_id": "1", "project_name": "Incluido", "source_file": "projects.csv", "source_row": 2},
+            {"project_id": "2", "project_name": "Excluido", "source_file": "projects.csv", "source_row": 3},
+        ])
+        deployments = pd.DataFrame([
+            {"project_id": "2", "deployment_id": "B", "subproject_name": "evento-invalido", "source_file": "deployments.csv", "source_row": 2},
+        ])
+        images = pd.DataFrame([
+            {"project_id": "2", "source_file": "images_2.csv", "source_row": 2},
+            {"project_id": "2", "source_file": "images_2.csv", "source_row": 3},
+        ])
+        published = pd.DataFrame([{"project_id": "1"}])
+        issues = pd.DataFrame([
+            {"source_file": "images_2.csv", "source_row": 2, "rule": "EVENT_CODE_INVALID", "original_value": "OCT_2025"},
+            {"source_file": "images_2.csv", "source_row": 3, "rule": "EVENT_CODE_INVALID", "original_value": "OCT_2025"},
+        ])
+        result = excluded_project_summary(projects, deployments, images, published, issues)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result.loc[0, "project_id"], "2")
+        self.assertEqual(result.loc[0, "registros_leidos"], 2)
+        self.assertEqual(result.loc[0, "categoria_exclusion"], "Evento de muestreo con formato no válido")
+        self.assertEqual(result.loc[0, "ejemplo_exclusion"], "OCT_2025")
+        self.assertIn("2 registros", result.loc[0, "detalle_exclusion"])
 
 
 class PublicationTests(unittest.TestCase):
@@ -237,6 +294,7 @@ class PublicationTests(unittest.TestCase):
             self.assertTrue((reports / "quality_report.json").exists())
             self.assertTrue((reports / "quality_report.html").exists())
             self.assertTrue((reports / "quality_issues.csv").exists())
+            self.assertTrue((reports / "excluded_project_summary.csv").exists())
             self.assertEqual(
                 (reports / "gallery_optimization.json").read_text(encoding="utf-8"),
                 '{"status":"preserved"}',
@@ -256,6 +314,10 @@ class PublicationTests(unittest.TestCase):
             self.assertEqual(projects.loc[0, "Corporacion"], "CORPORACIÓN DE PRUEBA")
             self.assertEqual(result["raw_counts"]["images"], 6)
             self.assertEqual(result["silver_counts"]["fact_observation"], 3)
+            self.assertEqual(result["project_outcome"], {"input": 1, "published": 1, "excluded": 0})
+            self.assertEqual(result["excluded_project_summary"], [])
+            self.assertIn("registros", result["project_summary"][0])
+            self.assertNotIn("observaciones", result["project_summary"][0])
             report_data = json.loads((reports / "quality_report.json").read_text(encoding="utf-8"))
             report_rules = {item["rule"]: item for item in report_data["rules"]}
             self.assertEqual(report_rules["EVENT_NAME_MISSING"]["count"], 1)

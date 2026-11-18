@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Mapping
 
 import geopandas as gpd
 import pandas as pd
@@ -16,6 +17,13 @@ class InputInspection:
     projects: pd.DataFrame
     corporations: tuple[str, ...]
     image_files: int
+    raw_file_counts: Mapping[str, int]
+    raw_record_counts: Mapping[str, int]
+    gallery_image_files: int
+    gallery_general_images: int
+    gallery_project_folders: int
+    gallery_projects_with_images: int
+    gallery_projects_without_images: int
     warnings: tuple[str, ...]
 
 
@@ -28,7 +36,56 @@ def _mode_text(values: pd.Series) -> str:
     return sorted(counts[counts.eq(counts.max())].index)[0]
 
 
-def inspect_input(raw_path: Path, shapefile_path: Path | None) -> InputInspection:
+def _csv_record_count(path: Path) -> int:
+    """Cuenta registros CSV respetando campos entrecomillados y saltos de línea."""
+    if not path.is_file():
+        return 0
+    return sum(len(chunk) for chunk in pd.read_csv(path, chunksize=100_000, low_memory=False))
+
+
+def _gallery_inventory(gallery_path: Path | None, project_ids: set[str]) -> dict[str, int]:
+    """Distingue fotografías, carpetas de proyecto y la carpeta General."""
+    empty = {
+        "gallery_image_files": 0,
+        "gallery_general_images": 0,
+        "gallery_project_folders": 0,
+        "gallery_projects_with_images": 0,
+        "gallery_projects_without_images": len(project_ids),
+    }
+    if gallery_path is None or not gallery_path.is_dir():
+        return empty
+
+    extensions = {".jpg", ".jpeg", ".png"}
+    folders = [path for path in gallery_path.iterdir() if path.is_dir()]
+    image_counts = {
+        folder.name: sum(
+            1
+            for path in folder.iterdir()
+            if path.is_file() and path.suffix.casefold() in extensions
+        )
+        for folder in folders
+    }
+    project_folders = {
+        name for name, count in image_counts.items()
+        if name.casefold() != "general" and count > 0
+    }
+    projects_with_images = project_ids.intersection(project_folders)
+    return {
+        "gallery_image_files": sum(image_counts.values()),
+        "gallery_general_images": next(
+            (count for name, count in image_counts.items() if name.casefold() == "general"), 0
+        ),
+        "gallery_project_folders": len(project_folders),
+        "gallery_projects_with_images": len(projects_with_images),
+        "gallery_projects_without_images": len(project_ids.difference(projects_with_images)),
+    }
+
+
+def inspect_input(
+    raw_path: Path,
+    shapefile_path: Path | None,
+    gallery_path: Path | None = None,
+) -> InputInspection:
     """Valida insumos mínimos y construye el catálogo inicial de proyectos."""
     projects_path = raw_path / "projects.csv"
     deployments_path = raw_path / "deployments.csv"
@@ -100,4 +157,37 @@ def inspect_input(raw_path: Path, shapefile_path: Path | None) -> InputInspectio
                 project_catalog["corporation"] = project_catalog["project_id"].map(assignment).fillna("Sin asignación")
 
     project_catalog = project_catalog.sort_values(["project_name", "project_id"]).reset_index(drop=True)
-    return InputInspection(project_catalog, corporations, len(image_paths), tuple(warnings))
+    optional_csv = {
+        "projects.csv": projects_path,
+        "deployments.csv": deployments_path,
+        "cameras.csv": raw_path / "cameras.csv",
+        "sequences.csv": raw_path / "sequences.csv",
+    }
+    raw_file_counts = {
+        **{name: int(path.is_file()) for name, path in optional_csv.items()},
+        "images_*.csv": len(image_paths),
+    }
+    raw_record_counts = {
+        "projects.csv": len(projects),
+        "deployments.csv": len(deployments),
+        "cameras.csv": _csv_record_count(optional_csv["cameras.csv"]),
+        "sequences.csv": _csv_record_count(optional_csv["sequences.csv"]),
+        "images_*.csv": sum(_csv_record_count(path) for path in image_paths),
+    }
+    project_ids = set(project_catalog["project_id"].dropna().astype(str))
+    gallery = _gallery_inventory(gallery_path, project_ids)
+    if gallery_path is None or not gallery_path.is_dir():
+        warnings.append("No se encontró una carpeta válida de fotografías originales para inventariar la galería.")
+    return InputInspection(
+        project_catalog,
+        corporations,
+        len(image_paths),
+        raw_file_counts,
+        raw_record_counts,
+        gallery["gallery_image_files"],
+        gallery["gallery_general_images"],
+        gallery["gallery_project_folders"],
+        gallery["gallery_projects_with_images"],
+        gallery["gallery_projects_without_images"],
+        tuple(warnings),
+    )
